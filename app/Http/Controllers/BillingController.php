@@ -110,6 +110,10 @@ class BillingController extends Controller
     public function index()
     {
         $billings = Billing::orderBy('id', 'desc')->get()->map(function ($b) {
+            $totalPaid = (float) Payments::where('billingid', (string) $b->billingid)->sum('amount');
+            $amount = (float) ($b->amount ?? 0);
+            $balance = round($amount - $totalPaid, 2);
+
             return [
                 'id' => $b->id,
                 'encrypted_id' => $b->encrypted_id,
@@ -120,6 +124,8 @@ class BillingController extends Controller
                 'billing_enddate' => $b->getRawOriginal('billing_enddate') ?: null,
                 'total_hours' => $b->total_hours,
                 'amount' => $b->amount,
+                'total_paid' => round($totalPaid, 2),
+                'balance' => $balance,
                 'status' => $b->status,
                 'created_at' => $b->created_at,
             ];
@@ -293,7 +299,7 @@ class BillingController extends Controller
             'total_hours' => 'nullable|numeric|min:0',
             // Not entered on the form (can be computed later); default to 0.
             'amount' => 'nullable|numeric|min:0',
-            'status' => 'nullable|string|in:unpaid,paid,cancelled',
+            'status' => 'nullable|string|in:unpaid,partial,paid,cancelled',
         ]);
 
         $isAdvanced = (bool) ($validated['advanced'] ?? false);
@@ -592,7 +598,7 @@ class BillingController extends Controller
         $path = 'billing_pdfs/' . $fileName;
 
         try {
-            Storage::disk('public')->put($path, $pdf->output());
+            Storage::disk(config('filesystems.billing_disk'))->put($path, $pdf->output());
         } catch (\Throwable $e) {
             // Saving is best-effort; still stream the PDF.
         }
@@ -653,7 +659,7 @@ class BillingController extends Controller
             'total_hours' => 'nullable|integer|min:0',
             // Amount is not edited on the form; keep existing when omitted.
             'amount' => 'nullable|numeric|min:0',
-            'status' => 'required|string|in:unpaid,paid,cancelled',
+            'status' => 'required|string|in:unpaid,partial,paid,cancelled',
         ]);
 
         [$attendanceRecord, $totalHours] = $this->computeAttendanceForBilling(

@@ -4,7 +4,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import {
     DropdownMenu,
@@ -57,6 +57,9 @@ export default function Students() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [deletingName, setDeletingName] = useState('');
+    const [uploadOpen, setUploadOpen] = useState(false);
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     // pagination
     const pageSize = 15;
     const [currentPage, setCurrentPage] = useState(1);
@@ -86,7 +89,10 @@ export default function Students() {
                         />
                     </div>
 
-                    <div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => setUploadOpen(true)}>
+                            <Upload className="mr-2 h-4 w-4" /> Bulk Upload
+                        </Button>
                         <Link href={`${students().url}/create`}>
                             <Button>
                                 <Plus className="mr-2 h-4 w-4"/> Add Student
@@ -193,6 +199,61 @@ export default function Students() {
                             >
                                 Delete
                             </button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Bulk Register Students</DialogTitle>
+                            <DialogDescription>
+                                Upload a CSV or Excel file. Required columns: firstname, lastname. Optional columns: tuteeid, middlename, date_of_birth, school, parent_name, parent_contact.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-3">
+                            <Input
+                                type="file"
+                                accept=".csv,.txt,.xlsx,.xls"
+                                onChange={(e) => {
+                                    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+                                    setUploadFile(file);
+                                }}
+                            />
+                            {(props as any).errors?.file && (
+                                <p className="text-sm text-destructive">{(props as any).errors.file}</p>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setUploadOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                disabled={!uploadFile || isUploading}
+                                onClick={() => {
+                                    if (!uploadFile || isUploading) return;
+
+                                    setIsUploading(true);
+                                    router.post(
+                                        '/students/import',
+                                        { file: uploadFile },
+                                        {
+                                            forceFormData: true,
+                                            onSuccess: () => {
+                                                setUploadOpen(false);
+                                                setUploadFile(null);
+                                            },
+                                            onFinish: () => {
+                                                setIsUploading(false);
+                                            },
+                                        },
+                                    );
+                                }}
+                            >
+                                {isUploading ? 'Uploading...' : 'Upload and Import'}
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

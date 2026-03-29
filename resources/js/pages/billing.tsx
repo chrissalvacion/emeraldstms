@@ -33,6 +33,8 @@ type Billing = {
 	billing_enddate: string | null;
 	total_hours: number;
 	amount: string | number;
+	total_paid?: string | number;
+	balance?: string | number;
 	status: 'unpaid' | 'paid' | 'cancelled' | string;
 };
 
@@ -99,7 +101,7 @@ export default function BillingIndex() {
 	};
 
 	const [query, setQuery] = useState('');
-	const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid' | 'cancelled'>('all');
+	const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'partial' | 'paid' | 'cancelled'>('all');
 	const [monthFilter, setMonthFilter] = useState<string>(''); // YYYY-MM
 	const [paymentQuery, setPaymentQuery] = useState('');
 
@@ -230,6 +232,7 @@ export default function BillingIndex() {
 								<DropdownMenuContent>
 									<DropdownMenuItem onSelect={() => setStatusFilter('all')}>All</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('unpaid')}>Unpaid</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => setStatusFilter('partial')}>Partial</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('paid')}>Paid</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('cancelled')}>Cancelled</DropdownMenuItem>
 								</DropdownMenuContent>
@@ -298,6 +301,8 @@ export default function BillingIndex() {
 											<th className="px-3 py-2 w-[140px]">End</th>
 											<th className="px-3 py-2 w-[120px]">Hours</th>
 											<th className="px-3 py-2 w-[120px]">Amount</th>
+											<th className="px-3 py-2 w-[120px]">Paid</th>
+											<th className="px-3 py-2 w-[120px]">Balance</th>
 											<th className="px-3 py-2 w-[120px]">Status</th>
 											<th className="px-3 py-2 w-[120px]">Actions</th>
 										</tr>
@@ -305,7 +310,7 @@ export default function BillingIndex() {
 									<tbody>
 										{list.length === 0 && (
 											<tr>
-												<td colSpan={8} className="p-4 text-center text-sm text-muted-foreground">
+												<td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">
 													No billings found.
 												</td>
 											</tr>
@@ -325,6 +330,8 @@ export default function BillingIndex() {
 													<td className="px-3 py-2">{formatDate(b.billing_enddate)}</td>
 													<td className="px-3 py-2">{b.total_hours ?? '-'}</td>
 													<td className="px-3 py-2">{formatAmount(b.amount)}</td>
+													<td className="px-3 py-2">{formatAmount(b.total_paid)}</td>
+													<td className="px-3 py-2">{formatAmount(b.balance)}</td>
 													<td className="px-3 py-2">{(b.status ?? '').toLowerCase()}</td>
 													<td className="px-3 py-2">
 														<DropdownMenu>

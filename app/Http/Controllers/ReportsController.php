@@ -44,6 +44,7 @@ class ReportsController extends Controller
 
                 return [
                     'id' => $billing->id,
+                    'encrypted_id' => $billing->encrypted_id,
                     'billingid' => $billing->billingid,
                     'studentid' => $billing->studentid,
                     'student_name' => $studentName,

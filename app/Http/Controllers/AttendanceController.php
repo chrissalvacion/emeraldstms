@@ -108,6 +108,8 @@ class AttendanceController extends Controller
                         'id' => $tr->id,
                         'tutorialid' => $tr->tutorialid,
                         'studentid' => $tr->studentid,
+                        'student_ref' => $student ? (string) $student->id : (string) $tr->studentid,
+                        'student_tuteeid' => $student ? (string) $student->tuteeid : null,
                         'tutorid' => $tr->tutorid,
                         'start_date' => $this->formatDateYmd($tr->start_date),
                         'end_date' => $this->formatDateYmd($tr->end_date),
@@ -128,6 +130,14 @@ class AttendanceController extends Controller
 
         return Inertia::render('attendance/clock', [
             'tutors' => $tutors,
+            'students' => Students::orderBy('lastname')->orderBy('firstname')->get()->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'tuteeid' => $s->tuteeid,
+                    'firstname' => $s->firstname,
+                    'lastname' => $s->lastname,
+                ];
+            }),
             'clock_in_grace_minutes' => $this->clockInGraceMinutes(),
             'app_timezone' => $this->localTimezone(),
             // Provide server-time context so the UI's schedule matching aligns with backend validation.
@@ -274,6 +284,199 @@ class AttendanceController extends Controller
         return back()->with('success', 'Time-out recorded successfully');
     }
 
+    /**
+     * Manual attendance record (date + time in + time out),
+     * without schedule-window enforcement.
+     */
+    public function recordManual(Request $request)
+    {
+        Tutorials::autoCompletePastEndDate($this->localTimezone());
+
+        $validated = $request->validate([
+            'tutorid' => 'required',
+            'studentid' => 'required',
+            'tutorialid' => 'nullable|string',
+            'date' => 'required|date_format:Y-m-d',
+            'time_in' => ['required', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
+            'time_out' => ['required', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
+        ]);
+
+        $date = Carbon::createFromFormat('Y-m-d', (string) $validated['date'], $this->localTimezone())->toDateString();
+        $timeIn = $this->normalizeTimeValue((string) $validated['time_in']);
+        $timeOut = $this->normalizeTimeValue((string) $validated['time_out']);
+
+        if ($timeIn === null || $timeOut === null) {
+            throw ValidationException::withMessages([
+                'time_in' => 'Invalid time format.',
+            ]);
+        }
+
+        $timeInMinutes = $this->timeStringToMinutes($timeIn);
+        $timeOutMinutes = $this->timeStringToMinutes($timeOut);
+        if ($timeInMinutes === null || $timeOutMinutes === null) {
+            throw ValidationException::withMessages([
+                'time_in' => 'Invalid time values.',
+            ]);
+        }
+        if ($timeOutMinutes < $timeInMinutes) {
+            throw ValidationException::withMessages([
+                'time_out' => 'Time out cannot be earlier than time in.',
+            ]);
+        }
+
+        $tutorInput = $validated['tutorid'];
+        $studentInput = $validated['studentid'];
+        $tutor = $this->resolveTutor($tutorInput);
+        $student = $this->resolveStudent($studentInput);
+
+        if (!$tutor) {
+            throw ValidationException::withMessages([
+                'tutorid' => 'Tutor not found.',
+            ]);
+        }
+
+        if (!$student) {
+            throw ValidationException::withMessages([
+                'studentid' => 'Student not found.',
+            ]);
+        }
+
+        $tutorial = null;
+
+        if (!empty($validated['tutorialid'])) {
+            $tutorial = Tutorials::query()->where('tutorialid', (string) $validated['tutorialid'])->first();
+        }
+
+        if (!$tutorial) {
+            $tutorial = $this->findPreferredTutorialForAttendance($tutorInput, $tutor, $studentInput, $student, $date);
+        }
+
+        if (!$tutorial) {
+            throw ValidationException::withMessages([
+                'tutorialid' => 'No active tutorial session found for the selected tutor and student on this date.',
+            ]);
+        }
+
+        if (!in_array((string) $tutorial->tutorid, $this->tutorIdentifiersForQuery($tutorInput, $tutor), true)) {
+            throw ValidationException::withMessages([
+                'tutorialid' => 'Selected tutorial does not belong to the selected tutor.',
+            ]);
+        }
+
+        if (!in_array((string) $tutorial->studentid, $this->studentIdentifiersForQuery($studentInput, $student), true)) {
+            throw ValidationException::withMessages([
+                'tutorialid' => 'Selected tutorial does not belong to the selected student.',
+            ]);
+        }
+
+        $recordFingerprint = hash('sha256', implode('|', [
+            (string) $tutorial->tutorid,
+            (string) $tutorial->studentid,
+            (string) $tutorial->tutorialid,
+            (string) $date,
+            (string) $timeIn,
+            (string) $timeOut,
+        ]));
+
+        $lastSubmission = $request->session()->get('attendance_manual_submission');
+        if (is_array($lastSubmission)) {
+            $samePayload = (($lastSubmission['fingerprint'] ?? '') === $recordFingerprint);
+            $submittedAt = (int) ($lastSubmission['submitted_at'] ?? 0);
+            $submittedRecently = $submittedAt > 0 && (time() - $submittedAt) <= 5;
+
+            if ($samePayload && $submittedRecently) {
+                return back()->with('success', 'Attendance already recorded.');
+            }
+        }
+
+        $alreadyExists = Attendance::query()
+            ->where('tutorid', (string) $tutorial->tutorid)
+            ->where('studentid', (string) $tutorial->studentid)
+            ->where('tutorialid', (string) $tutorial->tutorialid)
+            ->where('date', (string) $date)
+            ->where('time_in', (string) $timeIn)
+            ->where('time_out', (string) $timeOut)
+            ->exists();
+
+        if ($alreadyExists) {
+            $request->session()->put('attendance_manual_submission', [
+                'fingerprint' => $recordFingerprint,
+                'submitted_at' => time(),
+            ]);
+
+            return back()->with('success', 'Attendance already recorded.');
+        }
+
+        Attendance::create([
+            'tutorid' => (string) $tutorial->tutorid,
+            'studentid' => (string) $tutorial->studentid,
+            'tutorialid' => (string) $tutorial->tutorialid,
+            'date' => $date,
+            'time_in' => $timeIn,
+            'time_out' => $timeOut,
+        ]);
+
+        $request->session()->put('attendance_manual_submission', [
+            'fingerprint' => $recordFingerprint,
+            'submitted_at' => time(),
+        ]);
+
+        Tutorials::query()
+            ->where('tutorialid', (string) $tutorial->tutorialid)
+            ->where('status', 'Scheduled')
+            ->update(['status' => 'Ongoing']);
+
+        return back()->with('success', 'Attendance recorded successfully');
+    }
+
+    /**
+     * Update an attendance log record.
+     */
+    public function updateLog(Request $request, Attendance $attendance)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date_format:Y-m-d',
+            'time_in' => ['nullable', 'regex:/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/'],
+            'time_out' => ['nullable', 'regex:/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/'],
+            'password' => 'required|string|current_password',
+        ]);
+
+        $timeIn = $validated['time_in'] ?? null;
+        $timeOut = $validated['time_out'] ?? null;
+
+        if (!empty($timeIn) && !empty($timeOut)) {
+            $inMinutes = $this->timeStringToMinutes((string) $timeIn);
+            $outMinutes = $this->timeStringToMinutes((string) $timeOut);
+            if ($inMinutes !== null && $outMinutes !== null && $outMinutes < $inMinutes) {
+                throw ValidationException::withMessages([
+                    'time_out' => 'Time out cannot be earlier than time in.',
+                ]);
+            }
+        }
+
+        $attendance->update([
+            'date' => (string) $validated['date'],
+            'time_in' => $this->normalizeTimeValue((string) ($timeIn ?? '')),
+            'time_out' => $this->normalizeTimeValue((string) ($timeOut ?? '')),
+        ]);
+
+        return back()->with('success', 'Attendance log updated successfully');
+    }
+
+    /**
+     * Delete an attendance log record.
+     */
+    public function destroyLog(Request $request, Attendance $attendance)
+    {
+        $request->validate([
+            'password' => 'required|string|current_password',
+        ]);
+
+        $attendance->delete();
+
+        return back()->with('success', 'Attendance log deleted successfully');
+    }
+
     protected function resolveTutor($tutorInput): ?Tutors
     {
         if (empty($tutorInput)) return null;
@@ -300,6 +503,101 @@ class AttendanceController extends Controller
             if (!empty($tutor->tutorid)) $ids[] = (string) $tutor->tutorid;
         }
         return array_values(array_unique($ids));
+    }
+
+    protected function resolveStudent($studentInput): ?Students
+    {
+        if (empty($studentInput)) return null;
+
+        $student = null;
+        if (is_numeric($studentInput)) {
+            $student = Students::find($studentInput);
+        }
+        if (!$student) {
+            $student = Students::where('tuteeid', (string) $studentInput)->first();
+        }
+
+        return $student;
+    }
+
+    protected function studentIdentifiersForQuery($studentInput, ?Students $student): array
+    {
+        $ids = [];
+        if (!empty($studentInput)) $ids[] = (string) $studentInput;
+        if ($student) {
+            $ids[] = (string) $student->id;
+            if (!empty($student->tuteeid)) $ids[] = (string) $student->tuteeid;
+        }
+        return array_values(array_unique($ids));
+    }
+
+    protected function findPreferredTutorialForAttendance($tutorInput, ?Tutors $tutor, $studentInput, ?Students $student, string $date): ?Tutorials
+    {
+        $tutorIds = $this->tutorIdentifiersForQuery($tutorInput, $tutor);
+        $studentIds = $this->studentIdentifiersForQuery($studentInput, $student);
+        if (empty($studentIds)) return null;
+
+        $base = Tutorials::query()
+            ->whereNotIn('status', ['Cancelled', 'Completed'])
+            ->whereIn('studentid', $studentIds)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('start_date')->orWhere('start_date', '<=', $date);
+            })
+            ->where(function ($q) use ($date) {
+                $q->whereNull('end_date')->orWhere('end_date', '>=', $date);
+            });
+
+        $withTutor = null;
+        if (!empty($tutorIds)) {
+            $withTutor = (clone $base)
+                ->whereIn('tutorid', $tutorIds)
+                ->orderByRaw("CASE WHEN status = 'Ongoing' THEN 0 WHEN status = 'Scheduled' THEN 1 ELSE 2 END")
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        if ($withTutor instanceof Tutorials) return $withTutor;
+
+        $fallback = $base
+            ->orderByRaw("CASE WHEN status = 'Ongoing' THEN 0 WHEN status = 'Scheduled' THEN 1 ELSE 2 END")
+            ->orderByDesc('id')
+            ->first();
+
+        return $fallback instanceof Tutorials ? $fallback : null;
+    }
+
+    protected function normalizeTimeValue(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') return null;
+
+        $h24 = '/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/';
+        $h12 = '/^(0?[1-9]|1[0-2]):([0-5]\d)\s*([APap][Mm])$/';
+
+        if (preg_match($h24, $value)) {
+            try {
+                $dt = Carbon::parse($value, $this->localTimezone());
+                return $dt->format('H:i:s');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        if (preg_match($h12, $value, $m)) {
+            $hour = (int) $m[1];
+            $minute = (int) $m[2];
+            $meridiem = strtoupper($m[3]);
+
+            if ($meridiem === 'AM') {
+                if ($hour === 12) $hour = 0;
+            } else {
+                if ($hour !== 12) $hour += 12;
+            }
+
+            return sprintf('%02d:%02d:00', $hour, $minute);
+        }
+
+        return null;
     }
 
     protected function findActiveTutorialForTutor($tutorInput, ?Tutors $tutor, Carbon $now, int $graceMinutes = 0): array

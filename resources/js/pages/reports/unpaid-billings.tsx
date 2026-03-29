@@ -9,6 +9,7 @@ import { type BreadcrumbItem } from '@/types';
 
 type UnpaidBilling = {
     id: number;
+    encrypted_id?: string;
     billingid: string;
     studentid: string;
     student_name?: string | null;
@@ -195,7 +196,7 @@ export default function UnpaidBillingsReport({ billings }: UnpaidBillingsProps) 
                                             <tr key={billing.id} className="border-b hover:bg-muted/50 transition-colors">
                                                 <td className="py-3">
                                                     <Link
-                                                        href={`/billings/${billing.id}`}
+                                                        href={`/billings/${billing.encrypted_id ?? billing.id}`}
                                                         className="font-medium text-primary hover:underline"
                                                     >
                                                         {billing.billingid}
@@ -241,7 +242,7 @@ export default function UnpaidBillingsReport({ billings }: UnpaidBillingsProps) 
                                                 </td>
                                                 <td className="py-3">
                                                     <div className="flex gap-2">
-                                                        <Link href={`/billings/${billing.id}`}>
+                                                        <Link href={`/billings/${billing.encrypted_id ?? billing.id}`}>
                                                             <Button variant="outline" size="sm">
                                                                 View
                                                             </Button>

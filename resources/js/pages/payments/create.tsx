@@ -11,6 +11,17 @@ type BillingOption = {
 	billingid: string;
 	studentname?: string | null;
 	status?: string | null;
+	total_hours?: number;
+	total_amount?: number;
+	total_paid?: number;
+	balance_due?: number;
+	tutorial_sessions?: Array<{
+		tutorialid: string;
+		hours: number;
+		rounded_hours: number;
+		hourly_rate: number;
+		amount: number;
+	}>;
 };
 
 export default function PaymentCreate() {
@@ -38,6 +49,18 @@ export default function PaymentCreate() {
 
 	const [billingOpen, setBillingOpen] = useState(false);
 
+	const selectedBilling = useMemo(() => {
+		return billings.find((b) => String(b.billingid) === String(data.billingid)) ?? null;
+	}, [billings, data.billingid]);
+
+	const remainingBalance = Number(selectedBilling?.balance_due ?? 0);
+
+	const formatMoney = (value: any) => {
+		const n = Number(value ?? 0);
+		if (!Number.isFinite(n)) return '0.00';
+		return n.toFixed(2);
+	};
+
 	const billingSuggestions = useMemo(() => {
 		const q = String(data.billingid ?? '').toLowerCase().trim();
 		const filtered = billings.filter((b) => {
@@ -48,6 +71,14 @@ export default function PaymentCreate() {
 		});
 		return filtered.slice(0, 20);
 	}, [billings, data.billingid]);
+
+	const prefillLocked = Boolean(prefill?.billingid);
+
+	const currentStudentName = useMemo(() => {
+		if (prefill?.studentname) return prefill.studentname;
+		if (selectedBilling?.studentname) return selectedBilling.studentname;
+		return '-';
+	}, [prefill?.studentname, selectedBilling?.studentname]);
 
 	return (
 		<AppLayout breadcrumbs={breadcrumbs}>
@@ -60,6 +91,9 @@ export default function PaymentCreate() {
 					className="space-y-8 max-w-3xl"
 					onSubmit={(e) => {
 						e.preventDefault();
+						if (selectedBilling && remainingBalance > 0 && !data.amount) {
+							setData('amount', formatMoney(remainingBalance));
+						}
 						post('/payments');
 					}}
 				>
@@ -79,16 +113,17 @@ export default function PaymentCreate() {
 												onChange={(e) => {
 													setData('billingid', e.target.value);
 													setBillingOpen(true);
+													setData('amount', '');
 												}}
 												onFocus={() => setBillingOpen(true)}
 												onBlur={() => {
 													setTimeout(() => setBillingOpen(false), 150);
 												}}
-												disabled={!!prefill?.billingid}
+												disabled={prefillLocked}
 												required
 											/>
 
-											{!prefill?.billingid && billingOpen && (
+											{!prefillLocked && billingOpen && (
 												<div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
 													<div className="max-h-64 overflow-auto p-1">
 														{billingSuggestions.length === 0 ? (
@@ -102,6 +137,9 @@ export default function PaymentCreate() {
 																	onMouseDown={(e) => e.preventDefault()}
 																	onClick={() => {
 																	setData('billingid', b.billingid);
+																	if (Number(b.balance_due ?? 0) > 0) {
+																		setData('amount', formatMoney(b.balance_due));
+																	}
 																	setBillingOpen(false);
 																}}
 																>
@@ -109,6 +147,9 @@ export default function PaymentCreate() {
 																	{b.studentname ? (
 																		<div className="text-xs text-muted-foreground">{b.studentname}</div>
 																	) : null}
+																	<div className="text-xs text-muted-foreground">
+																		Balance: {formatMoney(b.balance_due)}
+																	</div>
 																</button>
 															))
 														)}
@@ -117,6 +158,13 @@ export default function PaymentCreate() {
 											)}
 										</div>
 										<InputError message={errors.billingid} />
+									</div>
+
+									<div>
+										<Label>Student</Label>
+										<div className="h-10 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+											{currentStudentName ?? '-'}
+										</div>
 									</div>
 
 									<div>
@@ -138,10 +186,16 @@ export default function PaymentCreate() {
 											type="number"
 											step="0.01"
 											min={0}
+											max={remainingBalance > 0 ? remainingBalance : undefined}
 											value={String(data.amount ?? '')}
 											onChange={(e) => setData('amount', e.target.value)}
 											required
 										/>
+										{selectedBilling && (
+											<div className="mt-1 text-xs text-muted-foreground">
+												Remaining balance: {formatMoney(remainingBalance)}
+											</div>
+										)}
 										<InputError message={errors.amount} />
 									</div>
 
@@ -262,6 +316,50 @@ export default function PaymentCreate() {
 									<InputError message={errors.payment_method} />
 								</div>
 							</div>
+
+							{selectedBilling && (
+								<div className="mt-4 rounded-md border p-4 bg-secondary/30">
+									<div className="mb-3 text-sm font-medium">Tutorial Sessions Billing Summary</div>
+									<div className="grid grid-cols-2 gap-3 text-sm">
+										<div>Total Tutorial Hours</div>
+										<div className="text-right font-medium">{Number(selectedBilling.total_hours ?? 0).toFixed(2)}</div>
+										<div>Total Billable Amount</div>
+										<div className="text-right font-medium">{formatMoney(selectedBilling.total_amount)}</div>
+										<div>Total Paid</div>
+										<div className="text-right font-medium">{formatMoney(selectedBilling.total_paid)}</div>
+										<div>Balance to Collect</div>
+										<div className="text-right font-semibold">{formatMoney(selectedBilling.balance_due)}</div>
+									</div>
+
+									{Array.isArray(selectedBilling.tutorial_sessions) && selectedBilling.tutorial_sessions.length > 0 && (
+										<div className="mt-4 space-y-2">
+											<div className="text-sm font-medium">Per Tutorial Session</div>
+											<div className="overflow-x-auto rounded-md border">
+												<table className="w-full table-fixed text-sm">
+													<thead>
+														<tr className="text-left text-muted-foreground">
+															<th className="px-2 py-2">Tutorial ID</th>
+															<th className="px-2 py-2 text-right">Hours</th>
+															<th className="px-2 py-2 text-right">Rate</th>
+															<th className="px-2 py-2 text-right">Amount</th>
+														</tr>
+													</thead>
+													<tbody>
+														{selectedBilling.tutorial_sessions.map((s) => (
+															<tr key={s.tutorialid} className="border-t">
+																<td className="px-2 py-2">{s.tutorialid}</td>
+																<td className="px-2 py-2 text-right">{Number(s.hours ?? 0).toFixed(2)}</td>
+																<td className="px-2 py-2 text-right">{formatMoney(s.hourly_rate)}</td>
+																<td className="px-2 py-2 text-right">{formatMoney(s.amount)}</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+											</div>
+										</div>
+									)}
+								</div>
+							)}
 						</div>
 					</section>
 

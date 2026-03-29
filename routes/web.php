@@ -75,6 +75,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('students', [StudentsController::class, 'index'])->name('students');
     Route::get('students/create', [StudentsController::class, 'create'])->name('students.create');
     Route::post('students', [StudentsController::class, 'store'])->name('students.store');
+    Route::post('students/import', [StudentsController::class, 'import'])->name('students.import');
     Route::get('students/{students}', [StudentsController::class, 'show'])->name('students.show');
     Route::get('students/{students}/edit', [StudentsController::class, 'edit'])->name('students.edit');
     Route::put('students/{students}', [StudentsController::class, 'update'])->name('students.update');
@@ -84,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('tutors', [TutorsController::class, 'index'])->name('tutors');
     Route::get('tutors/create', [TutorsController::class, 'create'])->name('tutors.create');
     Route::post('tutors', [TutorsController::class, 'store'])->name('tutors.store');
+    Route::post('tutors/import', [TutorsController::class, 'import'])->name('tutors.import');
     Route::get('tutors/{tutors}', [TutorsController::class, 'show'])->name('tutors.show');
     Route::get('tutors/{tutors}/edit', [TutorsController::class, 'edit'])->name('tutors.edit');
     Route::put('tutors/{tutors}', [TutorsController::class, 'update'])->name('tutors.update');
@@ -104,6 +106,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('attendance/daily-time-records', [AttendanceController::class, 'dailyTimeRecords'])->name('attendance.daily-time-records');
     Route::get('attendance/dtr-pdf', [AttendanceController::class, 'dtrPdf'])->name('attendance.dtr-pdf');
     Route::get('attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+    Route::post('attendance/record-manual', [AttendanceController::class, 'recordManual'])->name('attendance.record-manual');
+    Route::put('attendance/logs/{attendance}', [AttendanceController::class, 'updateLog'])->name('attendance.logs.update');
+    Route::delete('attendance/logs/{attendance}', [AttendanceController::class, 'destroyLog'])->name('attendance.logs.destroy');
 
     // Billings
     Route::get('billings', [BillingController::class, 'index'])->name('billings');
