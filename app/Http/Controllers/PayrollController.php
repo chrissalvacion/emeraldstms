@@ -5,13 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\PayrollEntry;
+use App\Models\Students;
 use App\Models\Tutorials;
 use App\Models\Tutors;
-use App\Models\AppSetting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class PayrollController extends Controller
@@ -37,11 +38,48 @@ class PayrollController extends Controller
         return trim(($tutor->firstname ?? '') . ' ' . ($tutor->lastname ?? '')) ?: null;
     }
 
+    protected function resolveStudentName(?string $studentId): ?string
+    {
+        if (empty($studentId)) return null;
+
+        $student = null;
+        if (is_numeric($studentId)) {
+            $student = Students::find($studentId);
+        }
+        if (!$student) {
+            $student = Students::where('tuteeid', (string) $studentId)->first();
+        }
+        if (!$student) return null;
+
+        return trim(($student->firstname ?? '') . ' ' . ($student->lastname ?? '')) ?: null;
+    }
+
     /**
      * Display a listing of the payroll records
      */
     public function index()
     {
+        if (!Schema::hasTable('payroll') || !Schema::hasTable('tutorials')) {
+            return Inertia::render('payroll', [
+                'payroll' => [],
+                'tutors_by_level' => [
+                    'kindergarten' => [],
+                    'elementary' => [],
+                    'jhs' => [],
+                    'shs' => [],
+                    'college' => [],
+                ],
+            ]);
+        }
+
+        $levelFiltersByKey = [
+            'kindergarten' => ['Kindergarten'],
+            'elementary' => ['Elementary'],
+            'jhs' => ['JHS', 'Junior High School'],
+            'shs' => ['SHS', 'Senior High School'],
+            'college' => ['College'],
+        ];
+
         $payroll = Payroll::with('entries')->orderBy('id', 'desc')->get()->map(function ($p) {
             $totalAmount = $p->entries->sum('total_amount');
             $totalReceived = $p->entries->sum('amount_received') ?? 0;
@@ -52,25 +90,13 @@ class PayrollController extends Controller
                 'period_start' => $p->period_start ? $p->period_start->format('Y-m-d') : null,
                 'period_end' => $p->period_end ? $p->period_end->format('Y-m-d') : null,
                 'tutor_count' => $p->entries->count(),
-                'total_hours' => (int) round($p->entries->sum('total_hours')),
+                'total_hours' => round((float) $p->entries->sum('total_hours'), 2),
                 'total_amount' => (float) $totalAmount,
                 'total_received' => (float) $totalReceived,
                 'status' => $p->status,
                 'encrypted_id' => Crypt::encryptString($p->id),
             ];
         });
-
-        $tutorIdsElementary = Tutorials::where('education_level', 'Elementary')
-            ->distinct()
-            ->pluck('tutorid')
-            ->filter()
-            ->values();
-
-        $tutorIdsSecondary = Tutorials::whereIn('education_level', ['JHS', 'SHS'])
-            ->distinct()
-            ->pluck('tutorid')
-            ->filter()
-            ->values();
 
         $buildTutorList = function ($tutorIds) {
             return collect($tutorIds)->map(function ($tutorid) {
@@ -81,12 +107,20 @@ class PayrollController extends Controller
             })->values();
         };
 
+        $tutorsByLevel = [];
+        foreach ($levelFiltersByKey as $levelKey => $levelFilters) {
+            $tutorIds = Tutorials::whereIn('level', $levelFilters)
+                ->distinct()
+                ->pluck('tutorid')
+                ->filter()
+                ->values();
+
+            $tutorsByLevel[$levelKey] = $buildTutorList($tutorIds);
+        }
+
         return Inertia::render('payroll', [
             'payroll' => $payroll,
-            'tutors_by_level' => [
-                'elementary' => $buildTutorList($tutorIdsElementary),
-                'secondary' => $buildTutorList($tutorIdsSecondary),
-            ],
+            'tutors_by_level' => $tutorsByLevel,
         ]);
     }
 
@@ -95,8 +129,16 @@ class PayrollController extends Controller
      */
     public function generate(Request $request)
     {
+        $levelFiltersByKey = [
+            'kindergarten' => ['Kindergarten'],
+            'elementary' => ['Elementary'],
+            'jhs' => ['JHS', 'Junior High School'],
+            'shs' => ['SHS', 'Senior High School'],
+            'college' => ['College'],
+        ];
+
         $request->validate([
-            'education_level' => 'required|string|in:elementary,secondary',
+            'education_level' => 'required|string|in:kindergarten,elementary,jhs,shs,college',
             'tutorids' => 'required|array|min:1',
             'tutorids.*' => 'string',
             'period_start' => 'required|date',
@@ -106,22 +148,12 @@ class PayrollController extends Controller
         $tutorids = $request->input('tutorids');
         $periodStart = Carbon::parse($request->input('period_start'))->toDateString();
         $periodEnd = Carbon::parse($request->input('period_end'))->toDateString();
-        $educationLevel = $request->input('education_level');
-
-        $levelFilters = $educationLevel === 'secondary' ? ['JHS', 'SHS'] : ['Elementary'];
+        $educationLevel = (string) $request->input('education_level');
+        $levelFilters = $levelFiltersByKey[$educationLevel] ?? [];
+        if (count($levelFilters) === 0) {
+            return back()->withErrors(['education_level' => 'Invalid education level selected.']);
+        }
         
-        // Get tutor fees from app settings (these are what we pay tutors, not what students pay)
-        $tutorFeeElementary = AppSetting::where('key', 'tutor_fee_elementary')->value('value');
-        $tutorFeeJhs = AppSetting::where('key', 'tutor_fee_jhs')->value('value');
-        $tutorFeeShs = AppSetting::where('key', 'tutor_fee_shs')->value('value');
-
-        // Create tutor fee map based on education level
-        $tutorFeeMap = [
-            'Elementary' => (float) ($tutorFeeElementary ?? 0),
-            'JHS' => (float) ($tutorFeeJhs ?? 0),
-            'SHS' => (float) ($tutorFeeShs ?? 0),
-        ];
-
         // Create a single payroll record for all tutors
         $payroll = Payroll::create([
             'period_start' => $periodStart,
@@ -149,7 +181,7 @@ class PayrollController extends Controller
                 }
 
                 $tutorials = Tutorials::where('tutorid', $tutorid)
-                    ->whereIn('education_level', $levelFilters)
+                    ->whereIn('level', $levelFilters)
                     ->get()
                     ->keyBy('tutorialid');
 
@@ -166,8 +198,8 @@ class PayrollController extends Controller
                     ->whereIn('tutorialid', $tutorialIds)
                     ->get();
 
-                // Group hours by education level (using tutor fees from app settings)
-                $hoursByLevel = []; // ['Elementary' => totalHours, 'JHS' => totalHours, etc.]
+                $totalHours = 0.0;
+                $totalAmount = 0.0;
                 $attendanceRecords = [];
 
                 foreach ($attendances as $a) {
@@ -175,20 +207,18 @@ class PayrollController extends Controller
                     $tutorial = $tutorials->get($a->tutorialid);
                     if (!$tutorial) continue;
 
-                    $tutorialEducationLevel = $tutorial->education_level;
-                    
-                    // Use tutor fee from app settings based on education level (not student billing rate)
-                    $tutorFee = $tutorFeeMap[$tutorialEducationLevel] ?? 0;
+                    $tutorialEducationLevel = $tutorial->level;
+
+                    // Source hourly rate from the tutorial record itself.
+                    $tutorFee = (float) ($tutorial->tutor_fee_amount ?? 0);
 
                     $timeIn = Carbon::createFromFormat('H:i:s', $a->time_in, $this->localTimezone());
                     $timeOut = Carbon::createFromFormat('H:i:s', $a->time_out, $this->localTimezone());
                     $hours = abs($timeOut->diffInMinutes($timeIn)) / 60; // hours as decimal
 
-                    // Accumulate hours by education level
-                    if (!isset($hoursByLevel[$tutorialEducationLevel])) {
-                        $hoursByLevel[$tutorialEducationLevel] = 0;
-                    }
-                    $hoursByLevel[$tutorialEducationLevel] += $hours;
+                    $amount = $hours * $tutorFee;
+                    $totalHours += $hours;
+                    $totalAmount += $amount;
 
                     // Store attendance record with individual hours (for display)
                     $attendanceRecords[] = [
@@ -199,7 +229,7 @@ class PayrollController extends Controller
                         'tutorial_id' => $a->tutorialid,
                         'education_level' => $tutorialEducationLevel,
                         'hourly_rate' => round($tutorFee, 2),
-                        'amount' => 0, // Will be recalculated after rounding
+                        'amount' => round($amount, 2),
                     ];
                 }
 
@@ -208,48 +238,15 @@ class PayrollController extends Controller
                     continue;
                 }
 
-                // Calculate total amount by: rounding hours per level, then multiplying by tutor fee
-                $totalAmount = 0;
-                $totalHoursRounded = 0;
-                $levelBreakdown = []; // For tracking calculation details
-
-                foreach ($hoursByLevel as $level => $hoursDecimal) {
-                    $roundedHours = round($hoursDecimal);
-                    $rate = $tutorFeeMap[$level] ?? 0;
-                    $amount = $roundedHours * $rate;
-                    
-                    $totalHoursRounded += $roundedHours;
-                    $totalAmount += $amount;
-                    
-                    $levelBreakdown[$level] = [
-                        'hours' => $roundedHours,
-                        'rate' => $rate,
-                        'amount' => $amount,
-                    ];
-                }
-
-                // Update attendance records with proportional amounts based on final calculation
-                // This ensures the sum of individual amounts equals the total amount
-                foreach ($attendanceRecords as &$record) {
-                    $level = $record['education_level'];
-                    $levelTotal = $hoursByLevel[$level] ?? 0;
-                    if ($levelTotal > 0 && isset($levelBreakdown[$level])) {
-                        // Proportional amount based on this record's hours vs total for this level
-                        $proportion = $record['hours'] / $levelTotal;
-                        $record['amount'] = round($proportion * $levelBreakdown[$level]['amount'], 2);
-                    }
-                }
-                unset($record); // Break reference
-
-                // Calculate weighted average hourly rate for display based on tutor fees
-                $displayRate = $totalHoursRounded > 0 ? ($totalAmount / $totalHoursRounded) : 0;
+                // Weighted average for summary display.
+                $displayRate = $totalHours > 0 ? ($totalAmount / $totalHours) : 0;
 
                 // Create payroll entry for this tutor
                 PayrollEntry::create([
                     'payroll_id' => $payroll->id,
                     'tutorid' => $tutorid,
                     'hourly_rate' => round($displayRate, 2),
-                    'total_hours' => $totalHoursRounded,
+                    'total_hours' => round($totalHours, 2),
                     'total_amount' => round($totalAmount, 2),
                     'attendance_records' => $attendanceRecords,
                 ]);
@@ -285,17 +282,54 @@ class PayrollController extends Controller
             return back()->withErrors(['error' => 'Payroll not found']);
         }
 
-        $entries = $payroll->entries->map(function ($entry) {
+        $tutorialIds = collect($payroll->entries)
+            ->flatMap(function ($entry) {
+                $records = is_array($entry->attendance_records) ? $entry->attendance_records : [];
+                return collect($records)
+                    ->map(fn ($record) => is_array($record) ? ($record['tutorial_id'] ?? null) : null);
+            })
+            ->filter(fn ($tutorialId) => !empty($tutorialId))
+            ->map(fn ($tutorialId) => (string) $tutorialId)
+            ->unique()
+            ->values();
+
+        $studentNameByTutorialId = [];
+        if ($tutorialIds->count() > 0) {
+            $tutorialModels = Tutorials::query()
+                ->whereIn('tutorialid', $tutorialIds->all())
+                ->get(['tutorialid', 'studentid']);
+
+            foreach ($tutorialModels as $tutorial) {
+                $tutorialId = (string) ($tutorial->tutorialid ?? '');
+                if ($tutorialId === '') continue;
+
+                $studentNameByTutorialId[$tutorialId] = $this->resolveStudentName((string) ($tutorial->studentid ?? ''));
+            }
+        }
+
+        $entries = $payroll->entries->map(function ($entry) use ($studentNameByTutorialId) {
+            $attendanceRecords = collect($entry->attendance_records ?? [])
+                ->map(function ($record) use ($studentNameByTutorialId) {
+                    if (!is_array($record)) return $record;
+
+                    $tutorialId = (string) ($record['tutorial_id'] ?? '');
+                    $record['student_name'] = $studentNameByTutorialId[$tutorialId] ?? null;
+
+                    return $record;
+                })
+                ->values()
+                ->all();
+
             return [
                 'id' => $entry->id,
                 'tutorid' => $entry->tutorid,
                 'tutor_name' => $this->resolveTutorName($entry->tutorid),
                 'hourly_rate' => (float) $entry->hourly_rate,
-                'total_hours' => (int) round($entry->total_hours),
+                'total_hours' => round((float) $entry->total_hours, 2),
                 'total_amount' => (float) $entry->total_amount,
                 'amount_received' => $entry->amount_received ? (float) $entry->amount_received : null,
                 'signature' => $entry->signature,
-                'attendance_records' => $entry->attendance_records ?? [],
+                'attendance_records' => $attendanceRecords,
             ];
         });
 

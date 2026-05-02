@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class Tutorials extends Model
 {
@@ -15,18 +16,18 @@ class Tutorials extends Model
         'tutorialid',
         'studentid',
         'tutorid',
-        'education_level',
-        'grade_level',
-        'tutorial_date',
-        'tutorial_time',
         'tutorial_schedule',
         'start_date',
         'end_date',
-        'status',
-        'rate_grade_school',
-        'rate_secondary',
-        'billing_type',
+        'packageid',
+        'level',
+        'tutee_fee_amount',
+        'tutor_fee_amount',
         'prepaid_amount',
+        'prepaid_hours',
+        'completed_hours',
+        'remaining_hours',
+        'status',
     ];
 
     protected $appends = ['encrypted_id', 'student_name'];
@@ -64,7 +65,13 @@ class Tutorials extends Model
         'tutorial_schedule' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
+        'packageid' => 'integer',
+        'tutee_fee_amount' => 'decimal:2',
+        'tutor_fee_amount' => 'decimal:2',
         'prepaid_amount' => 'decimal:2',
+        'prepaid_hours' => 'decimal:2',
+        'completed_hours' => 'decimal:2',
+        'remaining_hours' => 'decimal:2',
     ];
 
     protected static function booted()
@@ -78,12 +85,21 @@ class Tutorials extends Model
 
     public static function autoCompletePastEndDate(?string $timezone = null): int
     {
+        if (!Schema::hasTable('tutorials')) {
+            return 0;
+        }
+
         $tz = $timezone ?: 'Asia/Manila';
         $today = Carbon::now($tz)->toDateString();
 
         return self::query()
             ->whereNotNull('end_date')
             ->where('end_date', '<', $today)
+            // Prepaid/promotional tutorials are hour-based; don't auto-complete solely due to end_date.
+            ->where(function ($q) {
+                $q->whereNull('prepaid_hours')
+                    ->orWhere('prepaid_hours', '<=', 0);
+            })
             ->where(function ($q) {
                 $q->whereNull('status')
                     ->orWhereNotIn('status', ['Completed', 'Cancelled']);
@@ -108,60 +124,137 @@ class Tutorials extends Model
     }
 
     /**
-     * Calculate total hours from prepaid package.
-     * Formula: total_hours = prepaid_amount / hourly_rate
+     * Total hours for prepaid-style packages.
+     * Source of truth is the stored `prepaid_hours` column.
      */
     public function getTotalPrepaidHours(): ?float
     {
-        if ($this->billing_type !== 'prepaid-package' || !$this->prepaid_amount) {
-            return null;
-        }
+        if ($this->prepaid_hours === null) return null;
 
-        $hourlyRate = $this->education_level === 'Elementary'
-            ? $this->rate_grade_school
-            : $this->rate_secondary;
-
-        if (!$hourlyRate || $hourlyRate <= 0) {
-            return null;
-        }
-
-        return (float) ($this->prepaid_amount / $hourlyRate);
+        $hours = (float) $this->prepaid_hours;
+        return $hours > 0 ? $hours : null;
     }
 
     /**
-     * Calculate remaining hours from prepaid package.
-     * Formula: remaining_hours = total_hours - hours_used_in_attendance (rounded to whole number)
+     * Calculate remaining prepaid hours from attendance.
      */
-    public function getRemainingPrepaidHours(): ?int
+    public function getRemainingPrepaidHours(): ?float
     {
-        if ($this->billing_type !== 'prepaid-package') {
-            return null;
-        }
-
         $totalHours = $this->getTotalPrepaidHours();
         if ($totalHours === null) {
             return null;
         }
 
-        // Get total hours from attendance records for this tutorial
-        $attendances = Attendance::where('tutorialid', (string) ($this->tutorialid ?? ''))
-            ->get();
+        $used = $this->calculateCompletedHoursFromAttendance();
+        return round(max(0, $totalHours - $used), 2);
+    }
 
-        $totalHoursUsed = 0;
-        foreach ($attendances as $attendance) {
-            $timeIn = $this->timeToMinutes($attendance->time_in);
-            $timeOut = $this->timeToMinutes($attendance->time_out);
+    /**
+     * Calculate total completed hours for this tutorial based on attendance logs.
+     *
+     * Uses only rows with both time_in and time_out.
+     * Handles overnight sessions where time_out is earlier than time_in.
+     */
+    public function calculateCompletedHoursFromAttendance(): float
+    {
+        $tutorialId = (string) ($this->tutorialid ?? '');
+        if ($tutorialId === '') return 0.0;
 
-            if ($timeIn !== null && $timeOut !== null) {
-                $durationMinutes = $timeOut - $timeIn;
-                if ($durationMinutes > 0) {
-                    $totalHoursUsed += $durationMinutes / 60;
-                }
+        $totalMinutes = 0;
+
+        $attendances = Attendance::query()
+            ->where('tutorialid', $tutorialId)
+            ->whereNotNull('time_in')
+            ->whereNotNull('time_out')
+            ->get(['time_in', 'time_out']);
+
+        foreach ($attendances as $a) {
+            $inMinutes = $this->timeToMinutesFlexible($a->time_in);
+            $outMinutes = $this->timeToMinutesFlexible($a->time_out);
+            if ($inMinutes === null || $outMinutes === null) continue;
+
+            if ($outMinutes < $inMinutes) {
+                $outMinutes += 24 * 60;
+            }
+
+            $diff = $outMinutes - $inMinutes;
+            if ($diff <= 0) continue;
+            $totalMinutes += $diff;
+        }
+
+        return round($totalMinutes / 60, 2);
+    }
+
+    /**
+     * Sync stored completed_hours/remaining_hours from attendance logs.
+     *
+     * - completed_hours is always updated (0.00 if no logs)
+     * - remaining_hours is only maintained for prepaid tutorials
+     */
+    public function syncHourCountersFromAttendance(): void
+    {
+        $this->syncHourCountersFromAttendanceWithAllowance(null);
+    }
+
+    /**
+     * Sync stored completed_hours/remaining_hours from attendance logs.
+     *
+     * If $totalAllowedHours is provided, it is used to compute remaining_hours.
+     * Otherwise:
+     * - prepaid tutorials use prepaid_hours
+     * - non-prepaid tutorials use the linked package duration_hours (if available)
+     */
+    public function syncHourCountersFromAttendanceWithAllowance(?float $totalAllowedHours): void
+    {
+        $completed = $this->calculateCompletedHoursFromAttendance();
+
+        $allowed = $totalAllowedHours;
+        if ($allowed === null) {
+            $prepaid = $this->getTotalPrepaidHours();
+            if ($prepaid !== null) {
+                $allowed = $prepaid;
+            } else {
+                $allowed = $this->getPackageDurationHours();
             }
         }
 
-        $remainingHours = $totalHours - $totalHoursUsed;
-        return (int) round($remainingHours);
+        $remaining = $allowed !== null ? round(max(0, $allowed - $completed), 2) : null;
+
+        $currentCompleted = $this->completed_hours !== null ? (float) $this->completed_hours : null;
+        $currentRemaining = $this->remaining_hours !== null ? (float) $this->remaining_hours : null;
+
+        $changed = false;
+        if ($currentCompleted === null || abs($currentCompleted - $completed) > 0.009) {
+            $this->completed_hours = $completed;
+            $changed = true;
+        }
+
+        if ($allowed !== null) {
+            if ($currentRemaining === null || abs($currentRemaining - (float) $remaining) > 0.009) {
+                $this->remaining_hours = $remaining;
+                $changed = true;
+            }
+        } elseif ($this->remaining_hours !== null) {
+            $this->remaining_hours = null;
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->save();
+        }
+    }
+
+    private function getPackageDurationHours(): ?float
+    {
+        try {
+            $packageId = $this->packageid;
+            if (empty($packageId)) return null;
+            $p = Packages::query()->find((int) $packageId);
+            $hours = $p ? (float) ($p->duration_hours ?? 0) : 0.0;
+            return $hours > 0 ? $hours : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /**
@@ -176,6 +269,41 @@ class Tutorials extends Model
             $hours = (int) $matches[1];
             $minutes = (int) $matches[2];
             return $hours * 60 + $minutes;
+        }
+
+        return null;
+    }
+
+    /**
+     * Accepts "HH:MM", "HH:MM:SS" or "H:MM AM/PM".
+     */
+    private function timeToMinutesFlexible(?string $time): ?int
+    {
+        if ($time === null) return null;
+        $raw = trim((string) $time);
+        if ($raw === '') return null;
+
+        // 24h
+        $m = [];
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $raw, $m)) {
+            $hh = (int) $m[1];
+            $mm = (int) $m[2];
+            if ($hh < 0 || $hh > 23 || $mm < 0 || $mm > 59) return null;
+            return $hh * 60 + $mm;
+        }
+
+        // 12h
+        if (preg_match('/^(\d{1,2}):(\d{2})\s*([AP]M)$/i', $raw, $m)) {
+            $hh = (int) $m[1];
+            $mm = (int) $m[2];
+            $ap = strtoupper((string) $m[3]);
+            if ($hh < 1 || $hh > 12 || $mm < 0 || $mm > 59) return null;
+            if ($ap === 'AM') {
+                if ($hh === 12) $hh = 0;
+            } else {
+                if ($hh !== 12) $hh += 12;
+            }
+            return $hh * 60 + $mm;
         }
 
         return null;

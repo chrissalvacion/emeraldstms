@@ -12,10 +12,12 @@ use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\RatesController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\PackagesController;
 use App\Models\Tutorials;
 use App\Models\Students;
 use App\Models\Tutors;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Schema;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -25,6 +27,7 @@ Route::get('/', function () {
 Route::get('/public-clock', [AttendanceController::class, 'publicClock'])->name('public.clock');
 Route::post('/attendance/time-in', [AttendanceController::class, 'timeIn'])->name('attendance.timeIn');
 Route::post('/attendance/time-out', [AttendanceController::class, 'timeOut'])->name('attendance.timeOut');
+Route::post('/attendance/record-manual-public', [AttendanceController::class, 'recordManualPublic'])->name('attendance.record-manual-public');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard stats API endpoint
@@ -32,6 +35,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('calendar', function () {
+        if (!Schema::hasTable('tutorials')) {
+            return Inertia::render('calendar', [
+                'tutorials' => [],
+            ]);
+        }
+
         Tutorials::autoCompletePastEndDate('Asia/Manila');
 
         $tutorials = Tutorials::orderBy('id', 'desc')->get()->map(function ($t) {
@@ -75,6 +84,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('students', [StudentsController::class, 'index'])->name('students');
     Route::get('students/create', [StudentsController::class, 'create'])->name('students.create');
     Route::post('students', [StudentsController::class, 'store'])->name('students.store');
+    Route::post('students/import', [StudentsController::class, 'import'])->name('students.import');
     Route::get('students/{students}', [StudentsController::class, 'show'])->name('students.show');
     Route::get('students/{students}/edit', [StudentsController::class, 'edit'])->name('students.edit');
     Route::put('students/{students}', [StudentsController::class, 'update'])->name('students.update');
@@ -84,6 +94,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('tutors', [TutorsController::class, 'index'])->name('tutors');
     Route::get('tutors/create', [TutorsController::class, 'create'])->name('tutors.create');
     Route::post('tutors', [TutorsController::class, 'store'])->name('tutors.store');
+    Route::post('tutors/import', [TutorsController::class, 'import'])->name('tutors.import');
     Route::get('tutors/{tutors}', [TutorsController::class, 'show'])->name('tutors.show');
     Route::get('tutors/{tutors}/edit', [TutorsController::class, 'edit'])->name('tutors.edit');
     Route::put('tutors/{tutors}', [TutorsController::class, 'update'])->name('tutors.update');
@@ -96,6 +107,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('tutorials/{tutorials}', [TutorialsController::class, 'show'])->name('tutorials.show');
     Route::get('tutorials/{tutorials}/edit', [TutorialsController::class, 'edit'])->name('tutorials.edit');
     Route::put('tutorials/{tutorials}', [TutorialsController::class, 'update'])->name('tutorials.update');
+    Route::patch('tutorials/{tutorials}/complete', [TutorialsController::class, 'markComplete'])->name('tutorials.complete');
     Route::delete('tutorials/{tutorials}', [TutorialsController::class, 'destroy'])->name('tutorials.destroy');
 
     // Attendance
@@ -104,10 +116,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('attendance/daily-time-records', [AttendanceController::class, 'dailyTimeRecords'])->name('attendance.daily-time-records');
     Route::get('attendance/dtr-pdf', [AttendanceController::class, 'dtrPdf'])->name('attendance.dtr-pdf');
     Route::get('attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+    Route::post('attendance/record-manual', [AttendanceController::class, 'recordManual'])->name('attendance.record-manual');
+    Route::put('attendance/logs/{attendance}', [AttendanceController::class, 'updateLog'])->name('attendance.logs.update');
+    Route::delete('attendance/logs/{attendance}', [AttendanceController::class, 'destroyLog'])->name('attendance.logs.destroy');
 
     // Billings
     Route::get('billings', [BillingController::class, 'index'])->name('billings');
     Route::get('billings/preview', [BillingController::class, 'preview'])->name('billings.preview');
+    Route::get('billings/students-by-dates', [BillingController::class, 'studentsByDates'])->name('billings.students-by-dates');
     Route::get('billings/student-rates', [BillingController::class, 'studentRates'])->name('billings.student-rates');
     Route::get('billings/create', [BillingController::class, 'create'])->name('billings.create');
     Route::post('billings', [BillingController::class, 'store'])->name('billings.store');
@@ -130,6 +146,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('rates', [RatesController::class, 'edit'])->name('rates.edit');
     Route::put('rates', [RatesController::class, 'update'])->name('rates.update');
 
+    // Packages
+    Route::get('packages', [PackagesController::class, 'index'])->name('packages.index');
+    Route::post('packages', [PackagesController::class, 'store'])->name('packages.store');
+    Route::put('packages/{package}', [PackagesController::class, 'update'])->name('packages.update');
+    Route::delete('packages/{package}', [PackagesController::class, 'destroy'])->name('packages.destroy');
+
     // Payroll
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
     Route::post('payroll/generate', [PayrollController::class, 'generate'])->name('payroll.generate');
@@ -143,10 +165,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Reports
     Route::get('reports', [ReportsController::class, 'index'])->name('reports');
     Route::get('reports/unpaid-billings', [ReportsController::class, 'unpaidBillings'])->name('reports.unpaid-billings');
+    Route::get('reports/unpaid-billings/pdf', [ReportsController::class, 'unpaidBillingsPdf'])->name('reports.unpaid-billings.pdf');
     Route::get('reports/paid-billings', [ReportsController::class, 'paidBillings'])->name('reports.paid-billings');
+    Route::get('reports/paid-billings/pdf', [ReportsController::class, 'paidBillingsPdf'])->name('reports.paid-billings.pdf');
     Route::get('reports/tutorials', [ReportsController::class, 'tutorials'])->name('reports.tutorials');
     Route::get('reports/absent-tutors', [ReportsController::class, 'absentTutors'])->name('reports.absent-tutors');
     Route::get('reports/absent-students', [ReportsController::class, 'absentStudents'])->name('reports.absent-students');
+    Route::get('reports/unbilled-active-tutees', [ReportsController::class, 'unbilledActiveTutees'])->name('reports.unbilled-active-tutees');
+    Route::get('reports/unbilled-active-tutees/pdf', [ReportsController::class, 'unbilledActiveTuteesPdf'])->name('reports.unbilled-active-tutees.pdf');
 });
 
 require __DIR__.'/settings.php';

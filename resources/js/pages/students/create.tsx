@@ -9,109 +9,125 @@ import InputError from '@/components/input-error';
 import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Students', href: students().url },
+    { title: 'Tutees', href: students().url },
     { title: 'Create', href: '#' },
 ];
 
 export default function StudentCreate() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create Student" />
+            <Head title="Create Tutee" />
 
-            <div className="m-5">
-                <h1 className="text-2xl font-semibold mb-4">Add New Student</h1>
+            <div className="mx-auto max-w-2xl px-4 py-8">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold tracking-tight">Add New Tutee</h1>
+            </div>
 
-                <Form method="post" action={students().url} className="space-y-4">
-                    {({ processing, errors }) => (
-                        <>
-                            <div className="space-y-6">
-                                {/* Personal Information */}
-                                <section className="p-4 rounded-md bg-background">
-                                    <h2 className="text-lg font-medium mb-2">Personal Information</h2>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <Label htmlFor="firstname">First name</Label>
-                                            <Input id="firstname" name="firstname" required />
-                                            <InputError message={errors.firstname} />
-                                        </div>
+            <Form method="post" action={students().url} className="space-y-8">
+                {({ processing, errors }) => (
+                <div className="space-y-8">
+                    {/* Personal Information */}
+                    <fieldset>
+                    <legend className="text-base font-semibold leading-7">Personal Information</legend>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        Basic details about the tutee.
+                    </p>
+                    <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-3">
+                        <div>
+                        <Label htmlFor="firstname" className="block text-sm font-medium leading-6">
+                            First name
+                        </Label>
+                        <Input id="firstname" name="firstname" required className="mt-2" />
+                        <InputError message={errors.firstname} />
+                        </div>
 
-                                        <div>
-                                            <Label htmlFor="middlename">Middle name</Label>
-                                            <Input id="middlename" name="middlename" />
-                                            <InputError message={errors.middlename} />
-                                        </div>
+                        <div>
+                        <Label htmlFor="middlename" className="block text-sm font-medium leading-6">
+                            Middle name
+                        </Label>
+                        <Input id="middlename" name="middlename" className="mt-2" />
+                        <InputError message={errors.middlename} />
+                        </div>
 
-                                        <div>
-                                            <Label htmlFor="lastname">Last name</Label>
-                                            <Input id="lastname" name="lastname" required />
-                                            <InputError message={errors.lastname} />
-                                        </div>
+                        <div>
+                        <Label htmlFor="lastname" className="block text-sm font-medium leading-6">
+                            Last name
+                        </Label>
+                        <Input id="lastname" name="lastname" required className="mt-2" />
+                        <InputError message={errors.lastname} />
+                        </div>
 
-                                        <div>
-                                            <Label htmlFor="date_of_birth">Date of birth</Label>
-                                            <Input id="date_of_birth" name="date_of_birth" type="date" />
-                                            <InputError message={errors.date_of_birth} />
-                                        </div>
-                                    </div>
-                                </section>
+                        <div>
+                        <Label htmlFor="date_of_birth" className="block text-sm font-medium leading-6">
+                            Date of birth
+                        </Label>
+                        <Input id="date_of_birth" name="date_of_birth" type="date" className="mt-2" />
+                        <InputError message={errors.date_of_birth} />
+                        </div>
+                    </div>
+                    </fieldset>
 
-                                {/* School Information */}
-                                <section className="p-4 rounded-md bg-background">
-                                    <h2 className="text-lg font-medium mb-2">School Information</h2>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <Label htmlFor="school">School</Label>
-                                            <Input id="school" name="school" />
-                                            <InputError message={errors.school} />
-                                        </div>
-                                    </div>
-                                </section>
+                    {/* School Information */}
+                    <fieldset>
+                    <legend className="text-base font-semibold leading-7">School Information</legend>
+                    <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                        <div>
+                        <Label htmlFor="school" className="block text-sm font-medium leading-6">
+                            School
+                        </Label>
+                        <Input id="school" name="school" className="mt-2" />
+                        <InputError message={errors.school} />
+                        </div>
+                    </div>
+                    </fieldset>
 
-                                {/* Parent & Enrollment */}
-                                <section className="p-4 rounded-md bg-background">
-                                    <h2 className="text-lg font-medium mb-2">Parent / Enrollment</h2>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <Label htmlFor="parent_name">Parent name</Label>
-                                            <Input id="parent_name" name="parent_name" />
-                                            <InputError message={errors.parent_name} />
-                                        </div>
+                    {/* Parent & Enrollment */}
+                    <fieldset>
+                    <legend className="text-base font-semibold leading-7">Parent / Enrollment</legend>
+                    <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                        <div>
+                        <Label htmlFor="parent_name" className="block text-sm font-medium leading-6">
+                            Parent name
+                        </Label>
+                        <Input id="parent_name" name="parent_name" className="mt-2" />
+                        <InputError message={errors.parent_name} />
+                        </div>
 
-                                        <div>
-                                            <Label htmlFor="parent_contact">Parent contact</Label>
-                                            <Input
-                                                id="parent_contact"
-                                                name="parent_contact"
-                                                type="tel"
-                                                inputMode="numeric"
-                                                pattern="\d{12}"
-                                                maxLength={12}
-                                                onInput={(e) => {
-                                                    const t = e.target as HTMLInputElement;
-                                                    t.value = t.value.replace(/\D/g, '').slice(0, 12);
-                                                }}
-                                            />
-                                            <InputError message={errors.parent_contact} />
-                                        </div>
-                                    </div>
-                                </section>
+                        <div>
+                        <Label htmlFor="parent_contact" className="block text-sm font-medium leading-6">
+                            Parent contact
+                        </Label>
+                        <Input
+                            id="parent_contact"
+                            name="parent_contact"
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="\d{12}"
+                            maxLength={12}
+                            className="mt-2"
+                            onInput={(e) => {
+                            const t = e.target as HTMLInputElement;
+                            t.value = t.value.replace(/\D/g, '').slice(0, 12);
+                            }}
+                        />
+                        <InputError message={errors.parent_contact} />
+                        </div>
+                    </div>
+                    </fieldset>
 
-                                {/* Note: Schedule & timing fields removed to match Students model/migration */}
+                    {/* Actions */}
+                    <div className="flex items-center gap-x-6 border-t border-border pt-8">
+                    <Button type="submit" disabled={processing}>
+                        {processing ? 'Saving...' : 'Save Student'}
+                    </Button>
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-4">
-                                    <Button type="submit" disabled={processing}>
-                                        {processing ? 'Saving...' : 'Save Student'}
-                                    </Button>
-
-                                    <Link href={students().url} className="text-sm text-muted-foreground">
-                                        Cancel
-                                    </Link>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </Form>
+                    <Link href={students().url} className="text-sm font-semibold leading-6 text-muted-foreground hover:text-foreground">
+                        Cancel
+                    </Link>
+                    </div>
+                </div>
+                )}
+            </Form>
             </div>
         </AppLayout>
     );

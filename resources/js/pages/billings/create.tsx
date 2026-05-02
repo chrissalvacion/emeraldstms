@@ -32,13 +32,15 @@ export default function BillingCreate() {
 
     const [studentQuery, setStudentQuery] = useState('');
     const [studentOpen, setStudentOpen] = useState(false);
+    const [studentsByDate, setStudentsByDate] = useState(activeStudents);
+    const studentsAbort = useRef<AbortController | null>(null);
     const previewAbort = useRef<AbortController | null>(null);
     const [previewSessions, setPreviewSessions] = useState<any[]>([]);
     const [totalAmount, setTotalAmount] = useState(0);
     const [totalAccumulatedHours, setTotalAccumulatedHours] = useState(0);
     const [previewExpanded, setPreviewExpanded] = useState(true);
 
-    const studentSource = activeStudents;
+    const studentSource = studentsByDate;
 
     const suggestions = useMemo(() => {
         const q = studentQuery.trim().toLowerCase();
@@ -53,6 +55,53 @@ export default function BillingCreate() {
             })
             .slice(0, 8);
     }, [studentQuery, studentSource]);
+
+    useEffect(() => {
+        // Load students who have tutorial sessions in the selected date range.
+        if (!data.billing_startdate || !data.billing_enddate) {
+            setStudentsByDate(activeStudents);
+            return;
+        }
+
+        const url = new URL('/billings/students-by-dates', window.location.origin);
+        url.searchParams.set('billing_startdate', String(data.billing_startdate));
+        url.searchParams.set('billing_enddate', String(data.billing_enddate));
+
+        const t = window.setTimeout(async () => {
+            try {
+                studentsAbort.current?.abort();
+                const controller = new AbortController();
+                studentsAbort.current = controller;
+
+                const res = await fetch(url.toString(), {
+                    method: 'GET',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: controller.signal,
+                });
+
+                if (!res.ok) return;
+
+                const json = await res.json();
+                const nextStudents = Array.isArray(json?.students) ? json.students : [];
+                setStudentsByDate(nextStudents);
+
+                if (data.studentid && !nextStudents.some((s: any) => s?.key === data.studentid)) {
+                    setData('studentid', '');
+                    setStudentQuery('');
+                    setPreviewSessions([]);
+                    setTotalAmount(0);
+                    setTotalAccumulatedHours(0);
+                }
+            } catch {
+                // ignore (abort or network)
+            }
+        }, 250);
+
+        return () => window.clearTimeout(t);
+    }, [activeStudents, data.billing_enddate, data.billing_startdate, data.studentid, setData]);
 
     useEffect(() => {
         // Auto-preview attendance once we have student + date range.
@@ -142,8 +191,8 @@ export default function BillingCreate() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Billing" />
 
-            <div className="m-5">
-                <h1 className="text-2xl font-semibold mb-4">Create Billing</h1>
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+                <h1 className="text-2xl font-semibold mb-6">Create Billing</h1>
 
                 <form
                     className="space-y-6"
@@ -156,7 +205,7 @@ export default function BillingCreate() {
                         post('/billings');
                     }}
                 >
-                    <section className="p-4 rounded-md bg-background">
+                    <section className="rounded-xl border bg-background p-6">
                         <h2 className="text-lg font-medium mb-2">Billing Details</h2>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>
@@ -180,7 +229,7 @@ export default function BillingCreate() {
 
                                 {studentOpen && suggestions.length > 0 && (
                                     <div className="relative">
-                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border border-border bg-popover shadow-md">
                                             {suggestions.map((s) => {
                                                 const label = `${s.name ?? '—'} (${s.tuteeid ?? s.id})`;
                                                 return (
@@ -205,6 +254,11 @@ export default function BillingCreate() {
                                 )}
 
                                 <InputError message={errors.studentid} />
+                                {data.billing_startdate && data.billing_enddate && studentSource.length === 0 && (
+                                    <div className="mt-1 text-sm text-muted-foreground">
+                                        No students have tutorial sessions in the selected date range.
+                                    </div>
+                                )}
                                 {!data.studentid && studentQuery && (
                                     <div className="text-sm text-muted-foreground mt-1">
                                         Please select a student from the suggestions
@@ -240,7 +294,7 @@ export default function BillingCreate() {
                                 <button
                                     type="button"
                                     onClick={() => setPreviewExpanded(!previewExpanded)}
-                                    className="flex items-center justify-between w-full text-left py-2 px-3 rounded-md hover:bg-accent transition-colors"
+                                    className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-accent transition-colors"
                                 >
                                     <h3 className="text-base font-medium">Tutorial Sessions Preview</h3>
                                     <span className="text-sm text-muted-foreground">
@@ -249,7 +303,7 @@ export default function BillingCreate() {
                                 </button>
                                 {previewExpanded && (
                                     <>
-                                        <div className="rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
+                                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
                                             <h4 className="font-semibold text-sm">Billing Summary</h4>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
@@ -266,7 +320,7 @@ export default function BillingCreate() {
                                             <h4 className="font-medium text-sm mb-3">Sessions by Tutorial</h4>
                                         </div>
                                         {previewSessions.map((session, idx) => (
-                                    <div key={idx} className="rounded-md border border-border p-4 space-y-2">
+                                    <div key={idx} className="rounded-xl border border-border p-4 space-y-2">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <div className="font-medium">{session.tutor_name || session.tutorialid}</div>

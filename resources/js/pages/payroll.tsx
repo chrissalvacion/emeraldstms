@@ -17,9 +17,10 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MoreHorizontal, Download, FileText, Plus, Trash2 } from 'lucide-react';
 import Heading from '@/components/heading';
+import { cn } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -30,9 +31,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface PayrollRecord {
     id: number;
-    payrollid: string;
-    period_start: string;
-    period_end: string;
+    payrollid: string | null;
+    period_start: string | null;
+    period_end: string | null;
     tutor_count: number;
     total_hours: number;
     total_amount: number;
@@ -46,10 +47,23 @@ interface Tutor {
     name: string;
 }
 
-type EducationLevelKey = 'elementary' | 'secondary';
+type EducationLevelKey = 'kindergarten' | 'elementary' | 'jhs' | 'shs' | 'college';
+
+const educationLevelOptions: Array<{ value: EducationLevelKey; label: string }> = [
+    { value: 'kindergarten', label: 'Kindergarten' },
+    { value: 'elementary', label: 'Elementary' },
+    { value: 'jhs', label: 'Junior High School' },
+    { value: 'shs', label: 'Senior High School' },
+    { value: 'college', label: 'College' },
+];
+
+interface PayrollPageProps {
+    payroll?: PayrollRecord[];
+    tutors_by_level?: Partial<Record<EducationLevelKey, Tutor[]>>;
+}
 
 export default function Payroll() {
-    const { payroll: payrollData, tutors_by_level: tutorsByLevel } = usePage().props as any;
+    const { payroll: payrollData, tutors_by_level: tutorsByLevel } = usePage().props as PayrollPageProps;
     const [list, setList] = useState<PayrollRecord[]>(payrollData || []);
     const [query, setQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -66,13 +80,17 @@ export default function Payroll() {
     const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    useEffect(() => {
+        setList(payrollData || []);
+    }, [payrollData]);
+
     const filtered = useMemo(() => {
         let source = [...list];
 
         if (query.trim()) {
             const q = query.toLowerCase();
             source = source.filter((p) =>
-                p.payrollid?.toLowerCase().includes(q)
+                String(p.payrollid ?? '').toLowerCase().includes(q)
             );
         }
 
@@ -154,7 +172,8 @@ export default function Payroll() {
         }).format(value);
     };
 
-    const formatDate = (date: string) => {
+    const formatDate = (date: string | null) => {
+        if (!date) return '-';
         return new Date(date).toLocaleDateString('en-PH');
     };
 
@@ -163,20 +182,28 @@ export default function Payroll() {
         return tutorsByLevel?.[educationLevel] ?? [];
     }, [educationLevel, tutorsByLevel]);
 
+    const getStatusBadgeClass = (status: string) => {
+        const normalized = String(status || '').toLowerCase();
+        if (normalized === 'paid') return 'bg-primary/10 text-primary';
+        if (normalized === 'approved') return 'bg-accent text-accent-foreground';
+        return 'bg-muted text-muted-foreground';
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Payroll" />
 
-            <div className="px-4 py-6">
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                 <Heading
                     title="Payroll Management"
                     description="Generate and manage tutor payroll records"
                 />
 
-                <div className="flex flex-col lg:flex-row lg:space-x-12">
+                <div className="mt-6 flex flex-col gap-4">
                     <div className="w-full">
-                        <div className="flex items-center justify-between gap-4 mb-4">
-                            <div className="flex-1 max-w-sm">
+                        <div className="mb-4 rounded-xl border bg-background p-4">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="w-full max-w-sm">
                                 <Input
                                     placeholder="Search payroll..."
                                     value={query}
@@ -186,27 +213,28 @@ export default function Payroll() {
                                     }}
                                 />
                             </div>
-                            <div>
+                            <div className="flex justify-end">
                                 <Button onClick={() => setGenerateDialogOpen(true)}>
                                     <Plus className="mr-2 h-4 w-4" /> Generate Payroll
                                 </Button>
                             </div>
                         </div>
+                        </div>
 
-                        <div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+                        <div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border bg-background md:min-h-min">
                             <div className="p-4">
                                 <div className="overflow-x-auto">
                                     <table className="w-full table-fixed">
                                         <thead>
-                                            <tr className="text-left text-sm text-muted-foreground">
-                                                <th className="px-3 py-2 w-[160px]">Payroll ID</th>
-                                                <th className="px-3 py-2 w-[140px]">Period</th>
-                                                <th className="px-3 py-2 w-[120px]">Tutors</th>
-                                                <th className="px-3 py-2 w-[120px]">Total Hours</th>
-                                                <th className="px-3 py-2 w-[140px]">Total Amount</th>
-                                                <th className="px-3 py-2 w-[140px]">Received</th>
-                                                <th className="px-3 py-2 w-[120px]">Status</th>
-                                                <th className="px-3 py-2 w-[120px]">Actions</th>
+                                            <tr className="border-b text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                                <th className="w-[160px] px-3 py-3">Payroll ID</th>
+                                                <th className="w-[210px] px-3 py-3">Period</th>
+                                                <th className="w-[120px] px-3 py-3">Tutors</th>
+                                                <th className="w-[120px] px-3 py-3">Total Hours</th>
+                                                <th className="w-[140px] px-3 py-3">Total Amount</th>
+                                                <th className="w-[140px] px-3 py-3">Received</th>
+                                                <th className="w-[120px] px-3 py-3">Status</th>
+                                                <th className="w-[120px] px-3 py-3 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -224,20 +252,18 @@ export default function Payroll() {
                                                 const start = (currentPage - 1) * pageSize;
                                                 const paged = filtered.slice(start, start + pageSize);
                                                 return paged.map((p) => (
-                                                    <tr key={p.id} className="border-t">
-                                                        <td className="px-3 py-2 break-words text-sm">
-                                                            {p.payrollid}
-                                                        </td>
+                                                    <tr key={p.id} className="border-t odd:bg-transparent even:bg-muted/40">
+                                                        <td className="px-3 py-2 break-words text-sm">{p.payrollid ?? '-'}</td>
                                                         <td className="px-3 py-2 break-words text-sm">
                                                             {formatDate(p.period_start)} to {formatDate(p.period_end)}
                                                         </td>
                                                         <td className="px-3 py-2 text-sm text-center">
-                                                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                                                            <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
                                                                 {p.tutor_count}
                                                             </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-sm">
-                                                            {Math.round(p.total_hours)}
+                                                            {Number(p.total_hours ?? 0).toFixed(2)}
                                                         </td>
                                                         <td className="px-3 py-2 text-sm">
                                                             {formatCurrency(p.total_amount)}
@@ -246,22 +272,17 @@ export default function Payroll() {
                                                             {formatCurrency(p.total_received)}
                                                         </td>
                                                         <td className="px-3 py-2">
-                                                            <span className={`text-xs px-2 py-1 rounded-full ${
-                                                                p.status === 'paid'
-                                                                    ? 'bg-green-100 text-green-800'
-                                                                    : p.status === 'approved'
-                                                                    ? 'bg-blue-100 text-blue-800'
-                                                                    : 'bg-yellow-100 text-yellow-800'
-                                                            }`}>
+                                                            <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize', getStatusBadgeClass(p.status))}>
                                                                 {p.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-3 py-2">
+                                                        <td className="px-3 py-2 text-right">
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger asChild>
                                                                     <Button
                                                                         variant="ghost"
-                                                                        size="sm"
+                                                                        size="icon"
+                                                                        className="h-8 w-8"
                                                                     >
                                                                         <MoreHorizontal className="h-4 w-4" />
                                                                     </Button>
@@ -295,7 +316,7 @@ export default function Payroll() {
                                                                             event.preventDefault();
                                                                             handleDelete(p);
                                                                         }}
-                                                                        className="text-red-600"
+                                                                        className="text-destructive focus:text-destructive"
                                                                     >
                                                                         <Trash2 className="mr-2 h-4 w-4" />
                                                                         Delete
@@ -312,7 +333,7 @@ export default function Payroll() {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-4 px-4 mt-4">
+                        <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
                             <div className="text-sm text-muted-foreground">
                                 Showing{' '}
                                 {filtered.length === 0
@@ -370,7 +391,7 @@ export default function Payroll() {
 
                     <div className="space-y-4">
                         <div>
-                            <label className="text-sm font-medium">Education Level</label>
+                            <label className="text-sm font-medium text-foreground">Education Level</label>
                             <select
                                 value={educationLevel}
                                 onChange={(e) => {
@@ -378,17 +399,20 @@ export default function Payroll() {
                                     setEducationLevel(next);
                                     setSelectedTutors([]);
                                 }}
-                                className="mt-1 w-full px-3 py-2 border border-sidebar-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
                                 <option value="">Select level</option>
-                                <option value="elementary">Primary/Elementary</option>
-                                <option value="secondary">Secondary (JHS/SHS)</option>
+                                {educationLevelOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium">Select Tutors</label>
-                            <div className="border border-sidebar-border rounded-md p-4 max-h-[300px] overflow-y-auto mt-2">
+                            <label className="text-sm font-medium text-foreground">Select Tutors</label>
+                            <div className="mt-2 max-h-[300px] overflow-y-auto rounded-md border bg-background p-4">
                                 {availableTutors.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">
                                         {educationLevel
@@ -400,7 +424,7 @@ export default function Payroll() {
                                         {availableTutors.map((t: Tutor) => (
                                             <label
                                                 key={t.tutorid}
-                                                className="flex items-center gap-2 cursor-pointer p-2 hover:bg-muted rounded"
+                                                className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-muted"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -421,9 +445,9 @@ export default function Payroll() {
                                                             );
                                                         }
                                                     }}
-                                                    className="w-4 h-4"
+                                                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                                                 />
-                                                <span className="text-sm">{t.name}</span>
+                                                <span className="text-sm text-foreground">{t.name}</span>
                                             </label>
                                         ))}
                                     </div>

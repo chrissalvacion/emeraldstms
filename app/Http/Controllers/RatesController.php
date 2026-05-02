@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class RatesController extends Controller
@@ -16,6 +17,16 @@ class RatesController extends Controller
 
     public function edit()
     {
+        if (!Schema::hasTable('app_settings')) {
+            return Inertia::render('rates', [
+                'default_rate_grade_school' => '',
+                'default_rate_secondary' => '',
+                'tutor_fee_elementary' => '',
+                'tutor_fee_jhs' => '',
+                'tutor_fee_shs' => '',
+            ]);
+        }
+
         $gs = AppSetting::where('key', self::KEY_DEFAULT_RATE_GRADE_SCHOOL)->value('value');
         $sec = AppSetting::where('key', self::KEY_DEFAULT_RATE_SECONDARY)->value('value');
         $tutorElem = AppSetting::where('key', self::KEY_TUTOR_FEE_ELEMENTARY)->value('value');

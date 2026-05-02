@@ -19,7 +19,18 @@ return new class extends Migration
             $table->json('tutorial_schedule')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
-            $table->string('status')->default('Scheduled');
+            $table->integer('packageid')->required();
+            $table->string('level')->nullable();
+            $table->decimal('tutee_fee_amount', 10, 2)->nullable();
+            $table->decimal('tutor_fee_amount', 10, 2)->nullable();
+            $table->decimal('prepaid_amount', 10, 2)->nullable();
+            $table->decimal('prepaid_hours', 10, 2)->nullable();
+            $table->decimal('completed_hours', 10, 2)->nullable();
+            $table->decimal('remaining_hours', 10, 2)->nullable();
+            $table->string('billing_type')->default('per-session');
+            $table->string('status')->default('Scheduled'); // e.g., "Scheduled", "Ongoing", "Completed", "Cancelled"
+           
+             // Foreign key to packages table
             $table->timestamps();
         });
     }

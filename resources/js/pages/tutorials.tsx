@@ -92,15 +92,16 @@ export default function Tutorials() {
 		<AppLayout breadcrumbs={breadcrumbs}>
 			<Head title="Tutorials" />
 
-			<div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+			<div className="mx-auto flex h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
 
-				 <div className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white shadow-lg">
-                    <h1 className="text-3xl font-bold mb-2">Tutorials</h1>
-                    <p className="text-emerald-50">Manage tutorial sessions and schedules.</p>
-                </div>
+	    		<div className="w-full">
+					<h1 className="text-2xl font-bold mb-2">Tutorial Sessions</h1>
+					<p className="text-muted-foreground text-sm">Manage tutorial sessions and schedules.</p>
+				</div>
 
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex-1 max-w-sm">
+				<div className="rounded-xl border bg-background p-4">
+					<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+					<div className="w-full flex-1 sm:max-w-sm">
 						<Input
 							placeholder="Search tutorials..."
 							value={query}
@@ -108,27 +109,28 @@ export default function Tutorials() {
 						/>
 					</div>
 
-					<div>
+					<div className="flex w-full items-center justify-end sm:w-auto">
 						<Link href={`/tutorials/create`}>
 							<Button>
 								<Plus className="mr-2 h-4 w-4" /> Add Tutorial
 							</Button>
 						</Link>
 					</div>
+					</div>
 				</div>
 
-				<div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+				<div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border bg-background md:min-h-min">
 					<div className="p-4">
 						<div className="overflow-x-auto">
 							<table className="w-full table-fixed">
 								<thead>
-									<tr className="text-left text-sm text-muted-foreground">
+									<tr className="border-b text-left text-sm text-muted-foreground">
 										<th className="px-3 py-2 w-[160px]">Session ID</th>
 										<th className="px-3 py-2 w-[260px]">Student</th>
 										<th className="px-3 py-2 w-[260px]">Tutor</th>
-										<th className="px-3 py-2 w-[240px]">Scheduled Days</th>
-										<th className="px-3 py-2 w-[220px]">Time</th>
-										<th className="px-3 py-2 w-[140px]">Start Date</th>
+										{/* <th className="px-3 py-2 w-[240px]">Scheduled Days</th>
+										<th className="px-3 py-2 w-[220px]">Time</th> */}
+										{/* <th className="px-3 py-2 w-[140px]">Start Date</th> */}
 										<th className="px-3 py-2 w-[100px]">Status</th>
 										<th className="px-3 py-2 w-[120px]">Actions</th>
 									</tr>
@@ -151,15 +153,15 @@ export default function Tutorials() {
 										const enc = s.encrypted_id ?? s.id;
 										const schedules = safeSchedules(s.tutorial_schedule);
 										return (
-											<tr key={s.id} className="border-t">
+											<tr key={s.id} className="border-t odd:bg-transparent even:bg-muted/50">
 												<td className="px-3 py-2 break-words">
-													<Link href={`/tutorials/${enc}`} className="text-black">{tutorialId}</Link>
+													<Link href={`/tutorials/${enc}`} className="font-medium text-primary hover:underline">{tutorialId}</Link>
 												</td>
 												<td className="px-3 py-2 break-words">
-													<Link href={`/tutorials/${enc}`} className="text-black">{student}</Link>
+													<Link href={`/tutorials/${enc}`} className="font-medium text-primary hover:underline">{student}</Link>
 												</td>
 												<td className="px-3 py-2 break-words">{tutor}</td>
-												<td className="px-3 py-2 align-top">
+												{/* <td className="px-3 py-2 align-top">
 													{schedules.length ? (
 														<div className="space-y-1">
 															{schedules.map((sc: any, i: number) => (
@@ -171,8 +173,8 @@ export default function Tutorials() {
 													) : (
 														'-'
 													)}
-												</td>
-												<td className="px-3 py-2 align-top">
+												</td> */}
+												{/* <td className="px-3 py-2 align-top">
 													{schedules.length ? (
 														<div className="space-y-1">
 															{schedules.map((sc: any, i: number) => (
@@ -184,10 +186,10 @@ export default function Tutorials() {
 													) : (
 														'-'
 													)}
-												</td>
-												<td className="px-3 py-2">
+												</td> */}
+												{/* <td className="px-3 py-2">
 													{s.start_date ? new Date(s.start_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
-												</td>
+												</td> */}
 												<td className="px-3 py-2">{s.status ?? '-'}</td>
 												<td className="px-3 py-2">
 													<DropdownMenu>
@@ -225,7 +227,7 @@ export default function Tutorials() {
 						</div>
 					</div>
 				</div>
-				<div className="flex items-center justify-between gap-4 px-4">
+				<div className="flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
 					<div className="text-sm text-muted-foreground">Showing {(list.length === 0) ? 0 : ((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, list.length)} of {list.length}</div>
 					<div className="flex items-center gap-2">
 						<Button size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}>Previous</Button>

@@ -26,6 +26,9 @@ export default function Login({
         <AuthLayout
             title="Emerald Tutorial Center Login"
             description="Enter your email and password below to log in"
+            backgroundClassName="bg-emerald-900"
+            backgroundImageUrl="/login.png"
+            cardClassName="rounded-2xl border border-emerald-100 bg-white p-6 shadow-2xl"
         >
             <Head title="Log in" />
 
@@ -53,7 +56,7 @@ export default function Login({
                             </div>
 
                             <div className="grid gap-2">
-                                <div className="flex items-center">
+                                {/* <div className="flex items-center">
                                     <Label htmlFor="password">Password</Label>
                                     {canResetPassword && (
                                         <TextLink
@@ -64,7 +67,7 @@ export default function Login({
                                             Forgot password?
                                         </TextLink>
                                     )}
-                                </div>
+                                </div> */}
                                 <Input
                                     id="password"
                                     type="password"
@@ -97,7 +100,7 @@ export default function Login({
                                 Log in
                             </Button>
                         </div>
-
+{/* 
                         {canRegister && (
                             <div className="text-center text-sm text-muted-foreground">
                                 Don't have an account?{' '}
@@ -105,7 +108,7 @@ export default function Login({
                                     Sign up
                                 </TextLink>
                             </div>
-                        )}
+                        )} */}
                     </>
                 )}
             </Form>

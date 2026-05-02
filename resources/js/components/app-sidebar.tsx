@@ -13,18 +13,18 @@ import {
 import { dashboard, students, tutors, tutorials, billings } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { CalendarDays, Handshake, User, BookOpen, Folder, LayoutGrid, Rocket, FileChartColumnIncreasing, ClockArrowUp, WalletMinimal, ReceiptRussianRuble, TagIcon } from 'lucide-react';
+import { CalendarDays, Handshake, User, LayoutGrid, Rocket, FileChartColumnIncreasing, ClockArrowUp, WalletMinimal, ReceiptRussianRuble, TagIcon, Package, Home } from 'lucide-react';
 import AppLogo from './app-logo';
 import rates from '@/routes/rates';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Overview',
         href: dashboard(),
-        icon: LayoutGrid,
+        icon: Home,
     },
     {
-        title: 'Students',
+        title: 'Tutees',
         href: students(),
         icon: User,
     },
@@ -39,14 +39,14 @@ const mainNavItems: NavItem[] = [
         icon: Rocket,
     },
     {
-        title: 'Calendar',
-        href: '/calendar',
-        icon: CalendarDays,
-    },
-    {
         title: 'Attendance',
         href: '/attendance',
         icon: ClockArrowUp,
+    },
+    {
+        title: 'Calendar',
+        href: '/calendar',
+        icon: CalendarDays,
     },
     {
         title: 'Billings & Payments',
@@ -58,6 +58,7 @@ const mainNavItems: NavItem[] = [
         href: '/payroll',
         icon: ReceiptRussianRuble,
     },
+  
     {
         title: 'Reports',
         href: '/reports',
@@ -66,10 +67,15 @@ const mainNavItems: NavItem[] = [
 ];
 
 const footerNavItems: NavItem[] = [
+    // {
+    //     title: 'Pricing and Rates',
+    //     href: rates.edit(),
+    //     icon: TagIcon,
+    // },
     {
-        title: 'Pricing and Rates',
-        href: rates.edit(),
-        icon: TagIcon,
+        title: 'Packages',
+        href: '/packages',
+        icon: Package,
     },
 ];
 

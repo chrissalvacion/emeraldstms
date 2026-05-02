@@ -8,7 +8,7 @@ import { type BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Tutors', href: '/tutors' },
-    { title: 'Create' },
+    { title: 'Create', href: '#' },
 ];
 
 export default function TutorCreate() {
@@ -16,83 +16,110 @@ export default function TutorCreate() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Tutor" />
 
-            <div className="m-5">
-                <h1 className="text-2xl font-semibold mb-4">Add New Tutor</h1>
+            <div className="mx-auto max-w-2xl px-4 py-8">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold tracking-tight">Add New Tutor</h1>
+                </div>
 
-                <Form method="post" action="/tutors" className="space-y-4">
+                <Form method="post" action="/tutors" className="space-y-8">
                     {({ processing, errors }) => (
-                        <>
-                            <div className="space-y-6">
-                                <section className="p-4 rounded-md bg-background">
-                                    <h2 className="text-lg font-medium mb-2">Personal Information</h2>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <Label htmlFor="firstname">First name</Label>
-                                            <Input id="firstname" name="firstname" required />
-                                            <InputError message={errors.firstname} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="middlename">Middle name</Label>
-                                            <Input id="middlename" name="middlename" />
-                                            <InputError message={errors.middlename} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="lastname">Last name</Label>
-                                            <Input id="lastname" name="lastname" required />
-                                            <InputError message={errors.lastname} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="date_of_birth">Date of birth</Label>
-                                            <Input id="date_of_birth" name="date_of_birth" type="date" />
-                                            <InputError message={errors.date_of_birth} />
-                                        </div>
+                        <div className="space-y-8">
+                            <fieldset>
+                                <legend className="text-base font-semibold leading-7">Personal Information</legend>
+                                <p className="mt-1 text-sm leading-6 text-muted-foreground">Basic details about the tutor.</p>
+                                <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-3">
+                                    <div>
+                                        <Label htmlFor="firstname" className="block text-sm font-medium leading-6">
+                                            First name
+                                        </Label>
+                                        <Input id="firstname" name="firstname" required className="mt-2" />
+                                        <InputError message={errors.firstname} />
                                     </div>
-                                </section>
 
-                                <section className="p-4 rounded-md bg-background">
-                                    <h2 className="text-lg font-medium mb-2">Contact & Work</h2>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <Label htmlFor="address">Address</Label>
-                                            <Input id="address" name="address" />
-                                            <InputError message={errors.address} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="email">Email</Label>
-                                            <Input id="email" name="email" type="email" required />
-                                            <InputError message={errors.email} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="phone">Phone</Label>
-                                            <Input id="phone" name="phone" />
-                                            <InputError message={errors.phone} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="license_number">License #</Label>
-                                            <Input id="license_number" name="license_number" />
-                                            <InputError message={errors.license_number} />
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="hire_date">Hire date</Label>
-                                            <Input id="hire_date" name="hire_date" type="date" />
-                                            <InputError message={errors.hire_date} />
-                                        </div>
+                                    <div>
+                                        <Label htmlFor="middlename" className="block text-sm font-medium leading-6">
+                                            Middle name
+                                        </Label>
+                                        <Input id="middlename" name="middlename" className="mt-2" />
+                                        <InputError message={errors.middlename} />
                                     </div>
-                                </section>
 
-                                <div className="flex items-center gap-4">
-                                    <Button type="submit" disabled={processing}>{processing ? 'Saving...' : 'Save Tutor'}</Button>
-                                    <Link href="/tutors" className="text-sm text-muted-foreground">Cancel</Link>
+                                    <div>
+                                        <Label htmlFor="lastname" className="block text-sm font-medium leading-6">
+                                            Last name
+                                        </Label>
+                                        <Input id="lastname" name="lastname" required className="mt-2" />
+                                        <InputError message={errors.lastname} />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="date_of_birth" className="block text-sm font-medium leading-6">
+                                            Date of birth <span className="text-sm text-muted-foreground">(Optional)</span>
+                                        </Label>
+                                        <Input id="date_of_birth" name="date_of_birth" type="date" className="mt-2" />
+                                        <InputError message={errors.date_of_birth} />
+                                    </div>
                                 </div>
+                            </fieldset>
+
+                            <fieldset>
+                                <legend className="text-base font-semibold leading-7">Contact & Work</legend>
+                                <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                                    <div>
+                                        <Label htmlFor="address" className="block text-sm font-medium leading-6">
+                                            Address <span className="text-sm text-muted-foreground">(Optional)</span>
+                                        </Label>
+                                        <Input id="address" name="address" className="mt-2" />
+                                        <InputError message={errors.address} />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="email" className="block text-sm font-medium leading-6">
+                                            Email <span className="text-sm text-muted-foreground">(Optional)</span>
+                                        </Label>
+                                        <Input id="email" name="email" type="email" className="mt-2" />
+                                        <InputError message={errors.email} />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="phone" className="block text-sm font-medium leading-6">
+                                            Phone <span className="text-sm text-muted-foreground">(Optional)</span>
+                                        </Label>
+                                        <Input id="phone" name="phone" className="mt-2" />
+                                        <InputError message={errors.phone} />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="license_number" className="block text-sm font-medium leading-6">
+                                            License # <span className="text-sm text-muted-foreground">(Optional)</span>
+                                        </Label>
+                                        <Input id="license_number" name="license_number" className="mt-2" />
+                                        <InputError message={errors.license_number} />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="hire_date" className="block text-sm font-medium leading-6">
+                                            Hire date
+                                        </Label>
+                                        <Input id="hire_date" name="hire_date" type="date" className="mt-2" />
+                                        <InputError message={errors.hire_date} />
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <div className="flex items-center gap-x-6 pt-8">
+                                <Button type="submit" disabled={processing}>
+                                    {processing ? 'Saving...' : 'Save Tutor'}
+                                </Button>
+
+                                <Link
+                                    href="/tutors"
+                                    className="text-sm font-semibold leading-6 text-muted-foreground hover:text-foreground"
+                                >
+                                    Cancel
+                                </Link>
                             </div>
-                        </>
+                        </div>
                     )}
                 </Form>
             </div>

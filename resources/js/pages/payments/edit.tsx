@@ -9,7 +9,8 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 type Payment = {
     id: number;
     paymentid: string;
-    billingid: string;
+    billingid?: string | null;
+    tutorialid?: string | null;
     studentname: string;
     payment_date: string;
     amount: string | number;
@@ -18,6 +19,7 @@ type Payment = {
     payer_name?: string | null;
     status?: string | null;
     remarks?: string | null;
+    nature_of_collection?: string | null;
 };
 
 export default function PaymentEdit() {
@@ -32,6 +34,7 @@ export default function PaymentEdit() {
     ];
 
     const { data, setData, put, processing, errors } = useForm({
+        tutorialid: payment?.tutorialid ?? '',
         payment_date: payment?.payment_date ?? '',
         amount: payment?.amount ?? '',
         payment_method: payment?.payment_method ?? '',
@@ -45,25 +48,26 @@ export default function PaymentEdit() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit Payment ${payment?.paymentid ?? ''}`} />
 
-            <div className="m-5">
-                <h1 className="text-2xl font-semibold mb-4">Edit Payment</h1>
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+                <h1 className="mb-6 text-2xl font-semibold">Edit Payment</h1>
 
                 <form
-                    className="space-y-6 max-w-3xl"
+                    className="max-w-5xl space-y-6"
                     onSubmit={(e) => {
                         e.preventDefault();
                         put(`/payments/${payment.id}`);
                     }}
                 >
-                    <section className="p-4 rounded-md bg-background">
-                        <h2 className="text-lg font-medium mb-2">Payment Details</h2>
+                    <section className="rounded-xl border bg-background p-6">
+                        <h2 className="mb-2 text-lg font-medium">Payment Details</h2>
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                             <div className="lg:col-span-3">
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                                     <div>
-                                        <Label htmlFor="billingid">Billing</Label>
-                                        <Input id="billingid" value={payment?.billingid ?? ''} disabled />
+                                        <Label htmlFor="tutorialid">Tutorial Session</Label>
+                                        <Input id="tutorialid" value={String(data.tutorialid ?? '')} onChange={(e) => setData('tutorialid', e.target.value)} required />
+                                        <InputError message={errors.tutorialid} />
                                     </div>
 
                                     <div>
@@ -104,11 +108,7 @@ export default function PaymentEdit() {
 
                                     <div>
                                         <Label htmlFor="payer_name">Payer name</Label>
-                                        <Input
-                                            id="payer_name"
-                                            value={String(data.payer_name ?? '')}
-                                            onChange={(e) => setData('payer_name', e.target.value)}
-                                        />
+                                        <Input id="payer_name" value={String(data.payer_name ?? '')} onChange={(e) => setData('payer_name', e.target.value)} />
                                         <InputError message={errors.payer_name} />
                                     </div>
 
@@ -131,80 +131,30 @@ export default function PaymentEdit() {
 
                                     <div className="sm:col-span-3">
                                         <Label htmlFor="remarks">Remarks</Label>
-                                        <Input
-                                            id="remarks"
-                                            value={String(data.remarks ?? '')}
-                                            onChange={(e) => setData('remarks', e.target.value)}
-                                        />
+                                        <Input id="remarks" value={String(data.remarks ?? '')} onChange={(e) => setData('remarks', e.target.value)} />
                                         <InputError message={errors.remarks} />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="lg:col-span-1">
-                                <div className="border rounded-md p-4 bg-secondary/50">
+                                <div className="rounded-xl border bg-secondary/50 p-4">
                                     <Label className="text-base font-medium">Payment method</Label>
                                     <div className="mt-4 space-y-3">
-                                        <label className="flex items-center gap-2 text-sm text-foreground">
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                value="Cash"
-                                                required
-                                                checked={data.payment_method === 'Cash'}
-                                                onChange={() => setData('payment_method', 'Cash')}
-                                                className="h-4 w-4 accent-primary"
-                                            />
-                                            <span>Cash</span>
-                                        </label>
-
-                                        <label className="flex items-center gap-2 text-sm text-foreground">
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                value="Bank"
-                                                checked={data.payment_method === 'Bank'}
-                                                onChange={() => setData('payment_method', 'Bank')}
-                                                className="h-4 w-4 accent-primary"
-                                            />
-                                            <span>Bank</span>
-                                        </label>
-
-                                        <label className="flex items-center gap-2 text-sm text-foreground">
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                value="GCash"
-                                                checked={data.payment_method === 'GCash'}
-                                                onChange={() => setData('payment_method', 'GCash')}
-                                                className="h-4 w-4 accent-primary"
-                                            />
-                                            <span>GCash</span>
-                                        </label>
-
-                                        <label className="flex items-center gap-2 text-sm text-foreground">
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                value="PayMaya"
-                                                checked={data.payment_method === 'PayMaya'}
-                                                onChange={() => setData('payment_method', 'PayMaya')}
-                                                className="h-4 w-4 accent-primary"
-                                            />
-                                            <span>PayMaya</span>
-                                        </label>
-
-                                        <label className="flex items-center gap-2 text-sm text-foreground">
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                value="PalawanPay"
-                                                checked={data.payment_method === 'PalawanPay'}
-                                                onChange={() => setData('payment_method', 'PalawanPay')}
-                                                className="h-4 w-4 accent-primary"
-                                            />
-                                            <span>PalawanPay</span>
-                                        </label>
+                                        {['Cash', 'Bank', 'GCash', 'PayMaya', 'PalawanPay'].map((method) => (
+                                            <label key={method} className="flex items-center gap-2 text-sm text-foreground">
+                                                <input
+                                                    type="radio"
+                                                    name="payment_method"
+                                                    value={method}
+                                                    required={method === 'Cash'}
+                                                    checked={data.payment_method === method}
+                                                    onChange={() => setData('payment_method', method)}
+                                                    className="h-4 w-4 accent-primary"
+                                                />
+                                                <span>{method}</span>
+                                            </label>
+                                        ))}
                                     </div>
                                     <InputError message={errors.payment_method} />
                                 </div>

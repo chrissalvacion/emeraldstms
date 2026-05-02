@@ -40,25 +40,26 @@ export default function TutorShow() {
     const name = `${tutor.firstname ?? ''} ${tutor.middlename ?? ''} ${tutor.lastname ?? ''}`.trim() || '—';
 
     const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Tutors', href: tutors().url },
-    { title: `${name}`, href: '#' },
+        { title: 'Tutors', href: tutors().url },
+        { title: `${name}`, href: '#' },
     ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Tutor ${name}`} />
 
-            <div className="p-4">
-                <div className="mb-4 flex items-center gap-4">
-                    <Link href={tutors().url}>
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+                <div className="mb-6 flex items-center gap-4 mt-4">
+                    {/* <Link href={tutors().url}>
                         <Button variant="ghost">
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
-                    </Link>
+                    </Link> */}
                     <h1 className="text-2xl font-semibold">{name}</h1>
                 </div>
                 
-                <div className="rounded-md border bg-background p-4">
+                <div className="space-y-6">
+                <div className="rounded-xl border bg-background p-6">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-medium">
                         <Info className="h-5 w-5 text-muted-foreground" />
                         Tutor Information
@@ -66,7 +67,6 @@ export default function TutorShow() {
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <InfoField icon={IdCard} label="Tutor ID" value={tutor.tutorid ?? '—'} />
-                        <br/>
                         <InfoField
                             icon={User}
                             label="Full Name"
@@ -133,7 +133,7 @@ export default function TutorShow() {
                     </div>
                 </div>
                 
-                <div className="mt-6 rounded-md border bg-background p-4">
+                <div className="rounded-xl border bg-background p-6">
                     <h2 className="text-lg font-medium mb-3">Tutorial Sessions</h2>
                     {(() => {
                         const pageProps = props as any;
@@ -172,20 +172,24 @@ export default function TutorShow() {
                                 endTime,
                                 start_date: item.start_date ?? null,
                                 end_date: item.end_date ?? null,
-                                encrypted: item.encrypted_id ?? item.encrypted ?? (item.raw?.encrypted_id ?? null) ?? item.encrypted_id,
+                                encrypted: item.encrypted_id ?? item.encrypted ?? null,
                                 raw: item,
                             };
                         });
 
                         if (rows.length === 0) {
-                            return <p className="text-sm text-muted-foreground">No sessions scheduled</p>;
+                            return (
+                                <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+                                    No sessions scheduled
+                                </div>
+                            );
                         }
 
                         return (
                             <div className="overflow-x-auto">
                                 <table className="w-full table-fixed text-sm">
                                     <thead>
-                                        <tr className="text-left">
+                                        <tr className="border-b text-left">
                                             <th className="w-[160px] px-3 py-2 text-muted-foreground">Tutorial ID</th>
                                             <th className="w-[240px] px-3 py-2 text-muted-foreground">Student</th>
                                             <th className="w-[260px] px-3 py-2 text-muted-foreground">Days</th>
@@ -195,12 +199,12 @@ export default function TutorShow() {
                                     </thead>
                                     <tbody>
                                         {rows.map((r: any, i: number) => (
-                                            <tr key={i} className="odd:bg-transparent even:bg-muted/50">
+                                            <tr key={i} className="border-t odd:bg-transparent even:bg-muted/50">
                                                 <td className="px-3 py-2">
                                                     {r.encrypted ? (
                                                         <Link
                                                             href={`/tutorials/${r.encrypted}`}
-                                                            className="font-medium hover:underline"
+                                                            className="font-medium text-primary hover:underline"
                                                         >
                                                             {r.tutorialid}
                                                         </Link>
@@ -277,6 +281,7 @@ export default function TutorShow() {
                             </div>
                         );
                     })()}
+                </div>
                 </div>
             </div>
         </AppLayout>    

@@ -10,6 +10,7 @@ use App\Models\Billing;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -27,6 +28,21 @@ class DashboardController extends Controller
 
     private function getStats()
     {
+        // During fresh setup (before migrations), avoid querying missing tables.
+        if (! $this->requiredTablesExist()) {
+            return [
+                'activeSessions' => 0,
+                'activeTutees' => 0,
+                'totalAttendance' => 0,
+                'activeTutors' => 0,
+                'unpaidBillings' => 0,
+                'paidBillings' => 0,
+                'topTutors' => [],
+                'recentTutorials' => [],
+                'recentAttendance' => [],
+            ];
+        }
+
         // Total active tutorial sessions
         $activeSessions = Tutorials::where('status', 'Ongoing')->count();
 
@@ -114,5 +130,14 @@ class DashboardController extends Controller
             'recentTutorials' => $recentTutorials,
             'recentAttendance' => $recentAttendance,
         ];
+    }
+
+    private function requiredTablesExist(): bool
+    {
+        return Schema::hasTable('tutorials')
+            && Schema::hasTable('attendance')
+            && Schema::hasTable('billings')
+            && Schema::hasTable('students')
+            && Schema::hasTable('tutors');
     }
 }

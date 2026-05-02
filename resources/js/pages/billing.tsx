@@ -2,7 +2,6 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import Heading from '@/components/heading';
 import { Separator } from '@/components/ui/separator';
 import {
 	DropdownMenu,
@@ -10,16 +9,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog';
+import { Plus, Eye, Pencil, Trash2, MoreHorizontal } from 'lucide-react';
 import { router } from '@inertiajs/react';
-import { MoreHorizontal, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { type BreadcrumbItem } from '@/types';
 
@@ -29,17 +20,21 @@ type Billing = {
 	billingid: string;
 	studentid: string;
 	student_name?: string | null;
+	tutorial_ids?: string | null;
 	billing_startdate: string | null;
 	billing_enddate: string | null;
 	total_hours: number;
 	amount: string | number;
+	total_paid?: string | number;
+	balance?: string | number;
 	status: 'unpaid' | 'paid' | 'cancelled' | string;
 };
 
 type Payment = {
 	id: number;
 	paymentid: string;
-	billingid: string;
+	billingid?: string | null;
+	tutorialid?: string | null;
 	billing_encrypted_id?: string | null;
 	studentname?: string | null;
 	payment_date: string;
@@ -99,7 +94,7 @@ export default function BillingIndex() {
 	};
 
 	const [query, setQuery] = useState('');
-	const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid' | 'cancelled'>('all');
+	const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'partial' | 'paid' | 'cancelled'>('all');
 	const [monthFilter, setMonthFilter] = useState<string>(''); // YYYY-MM
 	const [paymentQuery, setPaymentQuery] = useState('');
 
@@ -121,11 +116,13 @@ export default function BillingIndex() {
 			const q = query.toLowerCase();
 			source = source.filter((b) => {
 				const studentName = (b.student_name ?? '').toLowerCase();
+				const tutorialIds = (b.tutorial_ids ?? '').toLowerCase();
 				return (
 					`${b.id}`.includes(q) ||
 					(b.billingid ?? '').toLowerCase().includes(q) ||
 					(b.studentid ?? '').toLowerCase().includes(q) ||
 					studentName.includes(q) ||
+					tutorialIds.includes(q) ||
 					(b.status ?? '').toLowerCase().includes(q)
 				);
 			});
@@ -135,7 +132,7 @@ export default function BillingIndex() {
 	}, [billingsFromServer, monthFilter, query, statusFilter]);
 
 	const paymentsList = useMemo(() => {
-		let source = paymentsFromServer;
+		const source = paymentsFromServer;
 		const q = paymentQuery.trim().toLowerCase();
 		if (!q) return source;
 
@@ -143,6 +140,7 @@ export default function BillingIndex() {
 			return (
 				String(p.paymentid ?? '').toLowerCase().includes(q) ||
 				String(p.id ?? '').toLowerCase().includes(q) ||
+				String(p.tutorialid ?? '').toLowerCase().includes(q) ||
 				String(p.billingid ?? '').toLowerCase().includes(q) ||
 				String(p.studentname ?? '').toLowerCase().includes(q) ||
 				String(p.payment_method ?? '').toLowerCase().includes(q) ||
@@ -151,10 +149,6 @@ export default function BillingIndex() {
 			);
 		});
 	}, [paymentQuery, paymentsFromServer]);
-
-	const [confirmOpen, setConfirmOpen] = useState(false);
-	const [deletingId, setDeletingId] = useState<string | null>(null);
-	const [deletingLabel, setDeletingLabel] = useState('');
 
 	const pageSize = 15;
 	const [currentPage, setCurrentPage] = useState(1);
@@ -180,20 +174,43 @@ export default function BillingIndex() {
 		return String(v);
 	};
 
+	const formatBillingDate = (start: string | null, end: string | null) => {
+		if (start && end) return `${formatDate(start)} - ${formatDate(end)}`;
+		return formatDate(start ?? end);
+	};
+
+	const getActualBillingStatus = (billing: Billing) => {
+		const savedStatus = String(billing.status ?? '').toLowerCase();
+		if (savedStatus === 'cancelled') return 'cancelled';
+
+		const amount = Number(billing.amount ?? 0);
+		const totalPaid = Number(billing.total_paid ?? 0);
+		const computedBalance = Number.isFinite(Number(billing.balance))
+			? Number(billing.balance)
+			: amount - totalPaid;
+
+		if (Number.isFinite(computedBalance) && computedBalance <= 0) return 'paid';
+		if (Number.isFinite(totalPaid) && totalPaid > 0) return 'partial';
+		return 'unpaid';
+	};
+
 	return (
 		<AppLayout breadcrumbs={breadcrumbs}>
 			<Head title="Billings" />
 
-			<div className="px-4 py-6">
-				<Heading title="Billings and Payments" description="Manage billings and payments" />
+			<div className="mx-auto flex h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
+				<div className="w-full">
+					<h1 className="mb-2 text-2xl font-bold">Billings and Payments</h1>
+					<p className="text-sm text-muted-foreground">Manage billings and payments.</p>
+				</div>
 
 				<div className="flex flex-col lg:flex-row lg:space-x-12">
-					<aside className="w-full max-w-xl lg:w-48">
-						<nav className="flex flex-col space-y-1 space-x-0">
+					<aside className="w-full max-w-xl lg:w-52">
+						<nav className="flex flex-col space-y-1 rounded-xl border bg-background p-2">
 							<Button
 								size="sm"
 								variant="ghost"
-								className={`w-full justify-start ${activeTab === 'billings' ? 'bg-muted' : ''}`}
+								className={`w-full justify-start ${activeTab === 'billings' ? 'bg-muted font-medium' : ''}`}
 								onClick={() => setTab('billings')}
 							>
 								Billings
@@ -201,7 +218,7 @@ export default function BillingIndex() {
 							<Button
 								size="sm"
 								variant="ghost"
-								className={`w-full justify-start ${activeTab === 'payments' ? 'bg-muted' : ''}`}
+								className={`w-full justify-start ${activeTab === 'payments' ? 'bg-muted font-medium' : ''}`}
 								onClick={() => setTab('payments')}
 							>
 								Payments
@@ -214,10 +231,11 @@ export default function BillingIndex() {
 					<div className="min-w-0 flex-1 space-y-4">
 
 						{activeTab === 'billings' && (
+							<div className="rounded-xl border bg-background p-4">
 							<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 					<div className="flex flex-col gap-2 md:flex-row md:items-center">
 						<div className="max-w-sm">
-							<Input placeholder="Search billings..." value={query} onChange={(e) => setQuery(e.target.value)} />
+							<Input placeholder="Search billings, tutee, tutorial ID..." value={query} onChange={(e) => setQuery(e.target.value)} />
 						</div>
 
 						<div className="flex items-center gap-2">
@@ -230,6 +248,7 @@ export default function BillingIndex() {
 								<DropdownMenuContent>
 									<DropdownMenuItem onSelect={() => setStatusFilter('all')}>All</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('unpaid')}>Unpaid</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => setStatusFilter('partial')}>Partial</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('paid')}>Paid</DropdownMenuItem>
 									<DropdownMenuItem onSelect={() => setStatusFilter('cancelled')}>Cancelled</DropdownMenuItem>
 								</DropdownMenuContent>
@@ -266,10 +285,11 @@ export default function BillingIndex() {
 						</Link>
 					</div>
 				</div>
+							</div>
 						)}
 
 						{activeTab === 'payments' && (
-							<div className="flex items-center justify-between gap-4">
+							<div className="flex items-center justify-between gap-4 rounded-xl border bg-background p-4">
 								<div className="max-w-sm">
 									<Input
 										placeholder="Search payments..."
@@ -285,27 +305,25 @@ export default function BillingIndex() {
 							</div>
 						)}
 
-						<div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+						<div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border bg-background md:min-h-min">
 					<div className="p-4">
 						<div className="overflow-x-auto">
 							{activeTab === 'billings' ? (
 								<table className="w-full table-fixed">
 									<thead>
-										<tr className="text-left text-sm text-muted-foreground">
+										<tr className="border-b text-left text-sm text-muted-foreground">
 											<th className="px-3 py-2 w-[180px]">Billing ID</th>
-											<th className="px-3 py-2 w-[220px]">Student</th>
-											<th className="px-3 py-2 w-[140px]">Start</th>
-											<th className="px-3 py-2 w-[140px]">End</th>
-											<th className="px-3 py-2 w-[120px]">Hours</th>
-											<th className="px-3 py-2 w-[120px]">Amount</th>
-											<th className="px-3 py-2 w-[120px]">Status</th>
-											<th className="px-3 py-2 w-[120px]">Actions</th>
+											<th className="px-3 py-2 w-[200px]">Tutee Name</th>
+											<th className="px-3 py-2 w-[200px]">Tutorial ID</th>
+											<th className="px-3 py-2 w-[220px]">Billing Date</th>
+											{/* <th className="px-3 py-2 w-[120px]">Status</th> */}
+											<th className="px-3 py-2 w-[80px] text-right">Actions</th>
 										</tr>
 									</thead>
 									<tbody>
 										{list.length === 0 && (
 											<tr>
-												<td colSpan={8} className="p-4 text-center text-sm text-muted-foreground">
+												<td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">
 													No billings found.
 												</td>
 											</tr>
@@ -314,45 +332,43 @@ export default function BillingIndex() {
 											const start = (currentPage - 1) * pageSize;
 											const paged = list.slice(start, start + pageSize);
 											return paged.map((b) => (
-												<tr key={b.id} className="border-t">
+												<tr key={b.id} className="border-t odd:bg-transparent even:bg-muted/50">
 													<td className="px-3 py-2 break-words">
 														<Link href={`/billings/${b.encrypted_id}`} className="text-primary">
 															{b.billingid ?? '-'}
 														</Link>
 													</td>
 													<td className="px-3 py-2 break-words">{b.student_name ?? b.studentid ?? '-'}</td>
-													<td className="px-3 py-2">{formatDate(b.billing_startdate)}</td>
-													<td className="px-3 py-2">{formatDate(b.billing_enddate)}</td>
-													<td className="px-3 py-2">{b.total_hours ?? '-'}</td>
-													<td className="px-3 py-2">{formatAmount(b.amount)}</td>
-													<td className="px-3 py-2">{(b.status ?? '').toLowerCase()}</td>
-													<td className="px-3 py-2">
+													<td className="px-3 py-2 break-words">{b.tutorial_ids || '-'}</td>
+													<td className="px-3 py-2">{formatBillingDate(b.billing_startdate, b.billing_enddate)}</td>
+													{/* <td className="px-3 py-2">{getActualBillingStatus(b)}</td> */}
+													<td className="px-3 py-2 text-right">
 														<DropdownMenu>
 															<DropdownMenuTrigger asChild>
-																<button className="p-1 rounded-md hover:bg-muted" aria-label="Billing actions">
+																<Button variant="ghost" size="icon" className="h-7 w-7">
 																	<MoreHorizontal className="h-4 w-4" />
-																</button>
+																</Button>
 															</DropdownMenuTrigger>
-															<DropdownMenuContent>
+															<DropdownMenuContent align="end">
 																<DropdownMenuItem asChild>
-																	<Link href={`/billings/${b.encrypted_id}`} className="w-full">
-																		View
+																	<Link href={`/billings/${b.encrypted_id}`}>
+																		<Eye className="mr-2 h-4 w-4" /> View
 																	</Link>
 																</DropdownMenuItem>
 																<DropdownMenuItem asChild>
-																	<Link href={`/billings/${b.encrypted_id}/edit`} className="w-full">
-																		Edit
+																	<Link href={`/billings/${b.encrypted_id}/edit`}>
+																		<Pencil className="mr-2 h-4 w-4" /> Edit
 																	</Link>
 																</DropdownMenuItem>
 																<DropdownMenuItem
+																	className="text-destructive focus:text-destructive"
 																	onSelect={() => {
-																		setDeletingId(b.encrypted_id);
-																		setDeletingLabel(b.billingid ?? `#${b.id}`);
-																		setConfirmOpen(true);
+																		if (confirm(`Delete billing ${b.billingid}?`)) {
+																			router.delete(`/billings/${b.encrypted_id}`);
+																		}
 																	}}
-																	className="text-destructive"
 																>
-																	Delete
+																	<Trash2 className="mr-2 h-4 w-4" /> Delete
 																</DropdownMenuItem>
 															</DropdownMenuContent>
 														</DropdownMenu>
@@ -365,45 +381,69 @@ export default function BillingIndex() {
 							) : (
 								<table className="w-full table-fixed">
 									<thead>
-										<tr className="text-left text-sm text-muted-foreground">
+										<tr className="border-b text-left text-sm text-muted-foreground">
 											<th className="px-3 py-2 w-[200px]">Payment ID</th>
-											<th className="px-3 py-2 w-[200px]">Billing ID</th>
+											<th className="px-3 py-2 w-[200px]">Tutorial ID</th>
 											<th className="px-3 py-2 w-[240px]">Student</th>
 											<th className="px-3 py-2 w-[140px]">Date</th>
-											<th className="px-3 py-2 w-[140px]">Amount</th>
+											{/* <th className="px-3 py-2 w-[140px]">Amount</th>
 											<th className="px-3 py-2 w-[180px]">Method</th>
-											<th className="px-3 py-2 w-[140px]">Status</th>
+											<th className="px-3 py-2 w-[140px]">Status</th> */}
+											<th className="px-3 py-2 w-[80px] text-right">Actions</th>
 										</tr>
 									</thead>
 									<tbody>
 										{paymentsList.length === 0 && (
 											<tr>
-												<td colSpan={7} className="p-4 text-center text-sm text-muted-foreground">
+												<td colSpan={8} className="p-4 text-center text-sm text-muted-foreground">
 													No payments found.
 												</td>
 											</tr>
 										)}
 										{paymentsList.map((p) => (
-											<tr key={p.id} className="border-t">
+											<tr key={p.id} className="border-t odd:bg-transparent even:bg-muted/50">
 												<td className="px-3 py-2 break-words">
 													<Link href={`/payments/${p.id}`} className="text-primary">
 														{p.paymentid ?? '-'}
 													</Link>
 												</td>
-												<td className="px-3 py-2 break-words">
-													{p.billing_encrypted_id ? (
-														<Link href={`/billings/${p.billing_encrypted_id}`} className="text-primary">
-															{p.billingid ?? '-'}
-														</Link>
-													) : (
-														p.billingid ?? '-'
-													)}
-												</td>
+											<td className="px-3 py-2 break-words">{p.tutorialid ?? '-'}</td>
 												<td className="px-3 py-2 break-words">{p.studentname ?? '-'}</td>
 												<td className="px-3 py-2">{formatDate(p.payment_date)}</td>
-												<td className="px-3 py-2">{formatAmount(p.amount)}</td>
+												{/* <td className="px-3 py-2">{formatAmount(p.amount)}</td>
 												<td className="px-3 py-2 break-words">{p.payment_method ?? '-'}</td>
-												<td className="px-3 py-2">{(p.status ?? '').toLowerCase()}</td>
+												<td className="px-3 py-2">{p.status ?? '-'}</td> */}
+												<td className="px-3 py-2 text-right">
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button variant="ghost" size="icon" className="h-7 w-7">
+																<MoreHorizontal className="h-4 w-4" />
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem asChild>
+																<Link href={`/payments/${p.id}`}>
+																	<Eye className="mr-2 h-4 w-4" /> View
+																</Link>
+															</DropdownMenuItem>
+															<DropdownMenuItem asChild>
+																<Link href={`/payments/${p.id}/edit`}>
+																	<Pencil className="mr-2 h-4 w-4" /> Edit
+																</Link>
+															</DropdownMenuItem>
+															<DropdownMenuItem
+																className="text-destructive focus:text-destructive"
+																onSelect={() => {
+																	if (confirm(`Delete payment ${p.paymentid}?`)) {
+																		router.delete(`/payments/${p.id}`);
+																	}
+																}}
+															>
+																<Trash2 className="mr-2 h-4 w-4" /> Delete
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												</td>
 											</tr>
 										))}
 									</tbody>
@@ -414,7 +454,7 @@ export default function BillingIndex() {
 						</div>
 
 						{activeTab === 'billings' && (
-							<div className="flex items-center justify-between gap-4 px-4">
+							<div className="flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
 						<div className="text-sm text-muted-foreground">
 							Showing {list.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, list.length)} of {list.length}
 						</div>
@@ -435,33 +475,6 @@ export default function BillingIndex() {
 						)}
 					</div>
 				</div>
-
-				<Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Delete billing</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete {deletingLabel}? This action cannot be undone.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<button type="button" className="btn" onClick={() => setConfirmOpen(false)}>
-								Cancel
-							</button>
-							<button
-								type="button"
-								className="btn btn-destructive ml-2"
-								onClick={() => {
-									if (!deletingId) return;
-									router.delete(`/billings/${deletingId}`);
-									setConfirmOpen(false);
-								}}
-							>
-								Delete
-							</button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
 
 			</div>
 		</AppLayout>

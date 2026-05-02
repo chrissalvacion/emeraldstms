@@ -7,17 +7,35 @@ interface AuthLayoutProps {
     name?: string;
     title?: string;
     description?: string;
+    backgroundClassName?: string;
+    backgroundImageUrl?: string;
+    cardClassName?: string;
 }
 
 export default function AuthSimpleLayout({
     children,
     title,
     description,
+    backgroundClassName,
+    backgroundImageUrl,
+    cardClassName,
 }: PropsWithChildren<AuthLayoutProps>) {
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm">
-                <div className="flex flex-col gap-8">
+        <div
+            className={`group relative flex min-h-svh flex-col items-center justify-center gap-6 overflow-hidden p-6 md:p-10 ${backgroundClassName ?? 'bg-background'}`}
+        >
+            {backgroundImageUrl && (
+                <>
+                    <div
+                        className="absolute inset-0 scale-105 bg-cover bg-center bg-no-repeat blur-sm transition-all duration-700 ease-out group-hover:scale-100 group-hover:blur-0"
+                        style={{ backgroundImage: `url(${backgroundImageUrl})` }}
+                    />
+                    <div className="absolute inset-0 bg-black/25" />
+                </>
+            )}
+
+            <div className="relative z-10 w-full max-w-sm">
+                <div className={`flex flex-col gap-8 ${cardClassName ?? ''}`}>
                     <div className="flex flex-col items-center gap-4">
                         <Link
                             href={home()}

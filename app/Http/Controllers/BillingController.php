@@ -17,6 +17,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -86,6 +87,58 @@ class BillingController extends Controller
         return [];
     }
 
+    protected function extractTutorialIdsFromAttendance($attendanceRecord): array
+    {
+        $rows = $this->normalizeAttendanceRows($attendanceRecord);
+
+        return collect($rows)
+            ->map(fn ($row) => is_array($row) ? ($row['tutorialid'] ?? null) : null)
+            ->filter(fn ($value) => !empty($value))
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function paymentsForBilling(Billing $billing)
+    {
+        $tutorialIds = $this->extractTutorialIdsFromAttendance($billing->attendance_record);
+        $paymentsByTutorial = collect();
+        if (count($tutorialIds) > 0) {
+            $paymentsByTutorial = Payments::query()
+                ->whereIn('tutorialid', $tutorialIds)
+                ->get();
+        }
+
+        $paymentsByBillingId = collect();
+        if (!empty($billing->billingid)) {
+            $paymentsByBillingId = Payments::query()
+                ->where('billingid', (string) $billing->billingid)
+                ->get();
+        }
+
+        return $paymentsByTutorial
+            ->concat($paymentsByBillingId)
+            ->unique(fn ($payment) => (int) ($payment->id ?? 0))
+            ->sortByDesc('id')
+            ->values();
+    }
+
+    protected function computeBillingStatus(float $amount, float $totalPaid): string
+    {
+        $balance = round($amount - $totalPaid, 2);
+
+        // Any fully-settled billing should be paid, including zero-amount bills.
+        if ($balance <= 0) {
+            return 'paid';
+        }
+        if ($totalPaid > 0 && $balance > 0) {
+            return 'partial';
+        }
+
+        return 'unpaid';
+    }
+
     protected function formatTimeTo12Hour(?string $time, string $tz): ?string
     {
         if ($time === null) return null;
@@ -109,32 +162,57 @@ class BillingController extends Controller
      */
     public function index()
     {
-        $billings = Billing::orderBy('id', 'desc')->get()->map(function ($b) {
+        if (!Schema::hasTable('billings') || !Schema::hasTable('payments')) {
+            return Inertia::render('billing', [
+                'billings' => [],
+                'payments' => [],
+            ]);
+        }
+
+        $billings = Billing::orderBy('id', 'desc')->get()->map(function (Billing $b) {
+            $paymentsForBilling = $this->paymentsForBilling($b);
+            $totalPaid = round((float) $paymentsForBilling->sum('amount'), 2);
+            $amount = (float) ($b->amount ?? 0);
+            $balance = round($amount - $totalPaid, 2);
+            $computedStatus = $this->computeBillingStatus($amount, $totalPaid);
+            $currentStatus = strtolower((string) ($b->status ?? ''));
+            $finalStatus = $currentStatus === 'cancelled' ? 'cancelled' : $computedStatus;
+
+            // Keep persisted billing status in sync with computed balance/payment state.
+            if (($b->status ?? '') !== $finalStatus) {
+                $b->status = $finalStatus;
+                $b->save();
+            }
+
+            $tutorialIds = $this->extractTutorialIdsFromAttendance($b->attendance_record);
+
             return [
                 'id' => $b->id,
                 'encrypted_id' => $b->encrypted_id,
                 'billingid' => $b->billingid,
                 'studentid' => $b->studentid,
                 'student_name' => $this->resolveStudentName($b->studentid),
-                'billing_startdate' => $b->getRawOriginal('billing_startdate') ?: null,
-                'billing_enddate' => $b->getRawOriginal('billing_enddate') ?: null,
+                'tutorial_ids' => implode(', ', $tutorialIds),
+                'billing_startdate' => $b->billing_startdate ?: null,
+                'billing_enddate' => $b->billing_enddate ?: null,
                 'total_hours' => $b->total_hours,
                 'amount' => $b->amount,
-                'status' => $b->status,
+                'total_paid' => $totalPaid,
+                'balance' => $balance,
+                'status' => $finalStatus,
                 'created_at' => $b->created_at,
             ];
         });
 
         $payments = Payments::orderBy('id', 'desc')->get()->map(function ($p) {
-            $billing = Billing::where('billingid', $p->billingid)->first();
-
             return [
                 'id' => $p->id,
                 'paymentid' => $p->paymentid,
                 'billingid' => $p->billingid,
-                'billing_encrypted_id' => $billing?->encrypted_id,
+                'tutorialid' => $p->tutorialid,
+                'billing_encrypted_id' => null,
                 'studentname' => $p->studentname,
-                'payment_date' => $p->getRawOriginal('payment_date') ?: null,
+                'payment_date' => $p->payment_date ?: null,
                 'amount' => $p->amount,
                 'payment_method' => $p->payment_method,
                 'status' => $p->status,
@@ -152,12 +230,20 @@ class BillingController extends Controller
      */
     public function create()
     {
+        if (!Schema::hasTable('tutorials') || !Schema::hasTable('students')) {
+            return Inertia::render('billings/create', [
+                'active_students' => [],
+                'all_students' => [],
+                'default_student_hourly_rate' => '0',
+            ]);
+        }
+
         Tutorials::autoCompletePastEndDate($this->localTimezone());
 
-        // Only suggest students who have an active tutorial session.
-        // "Active" here means Scheduled or Ongoing.
+        // Suggest students who have tutorials that are billable regardless of
+        // session phase (Scheduled, Ongoing, or Completed).
         $candidateIds = Tutorials::query()
-            ->whereIn('status', ['Scheduled', 'Ongoing'])
+            ->whereIn('status', ['Scheduled', 'Ongoing', 'Completed'])
             ->pluck('studentid')
             ->filter(fn ($v) => !empty($v))
             ->map(fn ($v) => (string) $v)
@@ -231,6 +317,75 @@ class BillingController extends Controller
     }
 
     /**
+     * Return students who have tutorial sessions (attendance logs) in a date range.
+     * This is intentionally tutor-agnostic.
+     */
+    public function studentsByDates(Request $request)
+    {
+        $validated = $request->validate([
+            'billing_startdate' => 'required|date',
+            'billing_enddate' => 'required|date|after_or_equal:billing_startdate',
+        ]);
+
+        $startYmd = (string) $validated['billing_startdate'];
+        $endYmd = (string) $validated['billing_enddate'];
+
+        // Tutorial-based date overlap so students are included even if no
+        // attendance logs exist yet (e.g., Scheduled sessions).
+        $candidateIds = Tutorials::query()
+            ->whereIn('status', ['Scheduled', 'Ongoing', 'Completed'])
+            ->where(function ($q) use ($startYmd, $endYmd) {
+                $q->whereNull('start_date')
+                    ->orWhere('start_date', '<=', $endYmd);
+            })
+            ->where(function ($q) use ($startYmd) {
+                $q->whereNull('end_date')
+                    ->orWhere('end_date', '>=', $startYmd);
+            })
+            ->pluck('studentid')
+            ->filter(fn ($value) => !empty($value))
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->values();
+
+        if ($candidateIds->isEmpty()) {
+            return response()->json([
+                'students' => [],
+            ]);
+        }
+
+        $numericIds = $candidateIds->filter(fn ($value) => is_numeric($value))->values()->all();
+        $tuteeIds = $candidateIds->filter(fn ($value) => !is_numeric($value))->values()->all();
+
+        $students = Students::query()
+            ->where(function ($q) use ($numericIds, $tuteeIds) {
+                if (count($numericIds) > 0) {
+                    $q->orWhereIn('id', $numericIds);
+                }
+                if (count($tuteeIds) > 0) {
+                    $q->orWhereIn('tuteeid', $tuteeIds);
+                }
+            })
+            ->orderBy('lastname')
+            ->orderBy('firstname')
+            ->get()
+            ->map(function ($s) {
+                $name = trim(($s->firstname ?? '') . ' ' . ($s->lastname ?? ''));
+                return [
+                    'id' => $s->id,
+                    'tuteeid' => $s->tuteeid,
+                    'name' => $name,
+                    'key' => !empty($s->tuteeid) ? (string) $s->tuteeid : (string) $s->id,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'students' => $students,
+        ]);
+    }
+
+    /**
      * Get tutorial rates for a student.
      */
     public function studentRates(Request $request)
@@ -293,7 +448,7 @@ class BillingController extends Controller
             'total_hours' => 'nullable|numeric|min:0',
             // Not entered on the form (can be computed later); default to 0.
             'amount' => 'nullable|numeric|min:0',
-            'status' => 'nullable|string|in:unpaid,paid,cancelled',
+            'status' => 'nullable|string|in:unpaid,partial,paid,cancelled',
         ]);
 
         $isAdvanced = (bool) ($validated['advanced'] ?? false);
@@ -379,14 +534,7 @@ class BillingController extends Controller
             $totalMinutes += $minutes;
 
             $tutorial = $tutorials->get($a->tutorialid);
-            $rate = null;
-            if ($tutorial) {
-                if (in_array($tutorial->education_level, ['JHS', 'SHS'], true)) {
-                    $rate = $tutorial->rate_secondary;
-                } elseif ($tutorial->education_level === 'Elementary') {
-                    $rate = $tutorial->rate_grade_school;
-                }
-            }
+            $rate = $tutorial?->tutee_fee_amount;
             $rateValue = $rate !== null ? (float) $rate : $defaultRate;
             $hours = round($minutes / 60, 2);
             
@@ -476,16 +624,15 @@ class BillingController extends Controller
 
         $billing = Billing::findOrFail($id);
 
-        $payments = Payments::where('billingid', $billing->billingid)
-            ->orderBy('id', 'desc')
-            ->get()
+        $payments = $this->paymentsForBilling($billing)
             ->map(function ($p) {
                 return [
                     'id' => $p->id,
                     'paymentid' => $p->paymentid,
                     'billingid' => $p->billingid,
+                    'tutorialid' => $p->tutorialid,
                     'studentname' => $p->studentname,
-                    'payment_date' => $p->getRawOriginal('payment_date') ?: null,
+                    'payment_date' => $p->payment_date ?: null,
                     'amount' => $p->amount,
                     'payment_method' => $p->payment_method,
                     'nature_of_collection' => $p->nature_of_collection,
@@ -494,12 +641,29 @@ class BillingController extends Controller
             })
             ->values();
 
+        $tutorialIds = $this->extractTutorialIdsFromAttendance($billing->attendance_record);
+        $studentTotalPaid = 0.0;
+        if (count($tutorialIds) > 0) {
+            $studentTotalPaid = round((float) Payments::query()
+                ->whereIn('tutorialid', $tutorialIds)
+                ->sum('amount'), 2);
+        }
+
         // Calculate total paid and balance
-        $totalPaid = $payments->sum(function ($p) {
+        $totalPaid = round((float) $payments->sum(function ($p) {
             return (float) $p['amount'];
-        });
+        }), 2);
         $billingAmount = (float) ($billing->amount ?? 0);
-        $balance = $billingAmount - $totalPaid;
+        $sessionBalance = round($billingAmount - $studentTotalPaid, 2);
+
+        if ($sessionBalance <= 0 && (string) $billing->status !== 'paid') {
+            $billing->status = 'paid';
+            $billing->save();
+        }
+
+        $computedStatus = $sessionBalance <= 0
+            ? 'paid'
+            : $this->computeBillingStatus($billingAmount, $totalPaid);
 
         return Inertia::render('billings/show', [
             'billing' => [
@@ -508,18 +672,19 @@ class BillingController extends Controller
                 'billingid' => $billing->billingid,
                 'studentid' => $billing->studentid,
                 'student_name' => $this->resolveStudentName($billing->studentid),
-                'billing_startdate' => $billing->getRawOriginal('billing_startdate') ?: null,
-                'billing_enddate' => $billing->getRawOriginal('billing_enddate') ?: null,
+                'billing_startdate' => $billing->billing_startdate ?: null,
+                'billing_enddate' => $billing->billing_enddate ?: null,
                 'attendance_record' => $billing->attendance_record,
                 'total_hours' => $billing->total_hours,
                 'amount' => $billing->amount,
-                'status' => $billing->status,
+                'status' => $computedStatus,
                 'created_at' => $billing->created_at,
                 'updated_at' => $billing->updated_at,
             ],
             'payments' => $payments,
             'total_paid' => $totalPaid,
-            'balance' => $balance,
+            'student_total_paid' => $studentTotalPaid,
+            'balance' => $sessionBalance,
         ]);
     }
 
@@ -620,8 +785,8 @@ class BillingController extends Controller
                 'billingid' => $billing->billingid,
                 'studentid' => $billing->studentid,
                 'student_name' => $this->resolveStudentName($billing->studentid),
-                'billing_startdate' => $billing->getRawOriginal('billing_startdate') ?: null,
-                'billing_enddate' => $billing->getRawOriginal('billing_enddate') ?: null,
+                'billing_startdate' => $billing->billing_startdate ?: null,
+                'billing_enddate' => $billing->billing_enddate ?: null,
                 'attendance_record' => $billing->attendance_record,
                 'total_hours' => $billing->total_hours,
                 'amount' => $billing->amount,
@@ -653,10 +818,10 @@ class BillingController extends Controller
             'total_hours' => 'nullable|integer|min:0',
             // Amount is not edited on the form; keep existing when omitted.
             'amount' => 'nullable|numeric|min:0',
-            'status' => 'required|string|in:unpaid,paid,cancelled',
+            'status' => 'required|string|in:unpaid,partial,paid,cancelled',
         ]);
 
-        [$attendanceRecord, $totalHours] = $this->computeAttendanceForBilling(
+        [$attendanceRecord, $totalHours, $totalAmount] = $this->computeAttendanceForBilling(
             (string) $validated['studentid'],
             (string) $validated['billing_startdate'],
             (string) $validated['billing_enddate'],
@@ -664,10 +829,10 @@ class BillingController extends Controller
 
         $validated['attendance_record'] = $attendanceRecord;
         $validated['total_hours'] = $totalHours;
+        $validated['amount'] = $totalAmount;
 
         if (!array_key_exists('amount', $validated) || $validated['amount'] === null || $validated['amount'] === '') {
-            $rate = $this->defaultStudentHourlyRate();
-            $validated['amount'] = round(((float) $totalHours) * $rate, 2);
+            $validated['amount'] = 0;
         }
 
         $billing->update($validated);

@@ -266,92 +266,115 @@ export default function CalendarPage() {
 		return occurrencesByDate.get(selectedYmd) ?? [];
 	}, [occurrencesByDate, selectedYmd]);
 
+	const statusColor = (status: string) => {
+		switch (status.toLowerCase()) {
+			case 'ongoing': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+			case 'scheduled': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+			case 'completed': return 'bg-muted text-muted-foreground';
+			case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+			default: return 'bg-muted text-muted-foreground';
+		}
+	};
+
 	return (
 		<AppLayout breadcrumbs={breadcrumbs}>
 			<Head title="Calendar" />
 
-			<div className="p-4">
-				<div className="mb-4">
-					<div className="flex items-center justify-between gap-2">
+			<div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+
+				{/* Header */}
+				<div className="flex items-center justify-between gap-4">
+					<div>
 						<h1 className="text-2xl font-semibold">{monthLabel}</h1>
-						<div className="flex gap-2">
-							<Button variant="outline" size="icon" onClick={goPrevMonth} aria-label="Previous month" title="Previous month">
-								<ChevronLeft />
-							</Button>
-							<Button variant="outline" size="icon" onClick={goNextMonth} aria-label="Next month" title="Next month">
-								<ChevronRight />
-							</Button>
-						</div>
+						<p className="text-sm text-muted-foreground">Tutorial sessions plotted from tutorial schedules.</p>
 					</div>
-					<div className="text-sm text-muted-foreground">Tutorial sessions plotted from tutorial schedules.</div>
+					<div className="flex items-center gap-2">
+						<Button variant="outline" size="icon" onClick={goPrevMonth} aria-label="Previous month">
+							<ChevronLeft className="h-4 w-4" />
+						</Button>
+						<Button variant="outline" size="icon" onClick={goNextMonth} aria-label="Next month">
+							<ChevronRight className="h-4 w-4" />
+						</Button>
+					</div>
 				</div>
 
 				<div className="flex flex-col gap-4 lg:flex-row">
-					<div className="flex-1 rounded-md border bg-background p-4">
-					<div className="grid grid-cols-7 gap-2 mb-2">
-						{dayLabels.map((d) => (
-							<div key={d} className="text-xs font-medium text-muted-foreground text-center">
-								{d}
-							</div>
-						))}
-					</div>
 
-						<div className="grid grid-cols-7 gap-2">
-						{dates.map((d) => {
-							const ymd = formatYmd(d);
-							const inMonth = d.getMonth() === visibleMonth;
-							const isToday = formatYmd(d) === formatYmd(today);
-							const occ = occurrencesByDate.get(ymd) ?? [];
+					{/* Calendar grid */}
+					<div className="flex-1 rounded-xl border bg-background p-4">
+						{/* Day labels */}
+						<div className="mb-2 grid grid-cols-7">
+							{dayLabels.map((d) => (
+								<div key={d} className="py-1 text-center text-xs font-medium text-muted-foreground">
+									{d}
+								</div>
+							))}
+						</div>
+
+						{/* Date cells */}
+						<div className="grid grid-cols-7 gap-1">
+							{dates.map((d) => {
+								const ymd = formatYmd(d);
+								const inMonth = d.getMonth() === visibleMonth;
+								const isToday = ymd === formatYmd(today);
+								const isSelected = ymd === selectedYmd;
+								const occ = occurrencesByDate.get(ymd) ?? [];
 
 								return (
 									<div
 										key={ymd}
 										role="button"
 										tabIndex={0}
-										onClick={() => {
-											setSelectedYmd(ymd);
-											setPanelOpen(true);
-										}}
+										onClick={() => { setSelectedYmd(ymd); setPanelOpen(true); }}
 										onKeyDown={(e) => {
 											if (e.key === 'Enter' || e.key === ' ') {
-											e.preventDefault();
-											setSelectedYmd(ymd);
-											setPanelOpen(true);
-										}
-									}}
-										className={
-											'min-h-28 cursor-pointer rounded-md border p-2 ' +
-											(inMonth ? '' : 'opacity-60 ') +
-											(isToday ? 'bg-muted' : 'bg-background')
-										}
+												e.preventDefault();
+												setSelectedYmd(ymd);
+												setPanelOpen(true);
+											}
+										}}
+										className={[
+											'min-h-24 cursor-pointer rounded-lg border p-2 text-left transition-colors hover:bg-muted/50',
+											inMonth ? '' : 'opacity-40',
+											isToday ? 'border-primary/50 bg-primary/5' : 'bg-background',
+											isSelected ? 'ring-2 ring-primary ring-offset-1' : '',
+										].join(' ')}
 									>
-									<div className="flex items-start justify-between">
-										<div className="text-sm font-medium">{d.getDate()}</div>
-										{occ.length ? (
-											<div className="text-[10px] text-muted-foreground">{occ.length} session{occ.length > 1 ? 's' : ''}</div>
-										) : null}
-									</div>
+										<div className="flex items-start justify-between gap-1">
+											<span className={[
+												'flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium',
+												isToday ? 'bg-primary text-primary-foreground' : '',
+											].join(' ')}>
+												{d.getDate()}
+											</span>
+											{occ.length > 0 && (
+												<span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+													{occ.length}
+												</span>
+											)}
+										</div>
 
-									<div className="mt-2 space-y-1">
-										{occ.slice(0, 3).map((o, idx) => (
-											<div key={idx} className="text-xs">
-												<div className="font-medium truncate">{formatTime12h(o.start)}–{formatTime12h(o.end)} • {o.tutor}</div>
-												<div className="text-muted-foreground truncate">{o.student}</div>
-											</div>
-										))}
-										{occ.length > 3 ? (
-											<div className="text-xs text-muted-foreground">+{occ.length - 3} more</div>
-										) : null}
+										<div className="mt-1.5 space-y-1">
+											{occ.slice(0, 2).map((o, idx) => (
+												<div key={idx} className="truncate rounded bg-muted/60 px-1.5 py-0.5 text-[10px] leading-tight">
+													<span className="font-medium">{formatTime12h(o.start)}</span>
+													<span className="text-muted-foreground"> · {o.tutor}</span>
+												</div>
+											))}
+											{occ.length > 2 && (
+												<div className="text-[10px] text-muted-foreground">+{occ.length - 2} more</div>
+											)}
+										</div>
 									</div>
-								</div>
-							);
+								);
 							})}
 						</div>
 					</div>
 
-					{panelOpen && selectedYmd ? (
-						<div className="w-full rounded-md border bg-background p-4 lg:w-[420px]">
-							<div className="mb-2 flex items-start justify-between gap-2">
+					{/* Side panel */}
+					{panelOpen && selectedYmd && (
+						<div className="w-full shrink-0 rounded-xl border bg-background lg:w-[360px]">
+							<div className="flex items-start justify-between gap-2 border-b px-4 py-3">
 								<div>
 									<div className="text-sm font-medium">Schedules</div>
 									<div className="text-xs text-muted-foreground">{selectedDateLabel}</div>
@@ -359,34 +382,47 @@ export default function CalendarPage() {
 								<Button
 									variant="ghost"
 									size="icon"
-									onClick={() => {
-										setPanelOpen(false);
-									}}
+									className="shrink-0"
+									onClick={() => setPanelOpen(false)}
 									aria-label="Close schedules panel"
-									title="Close"
 								>
-									<X />
+									<X className="h-4 w-4" />
 								</Button>
 							</div>
 
-							<div className="space-y-3">
+							<div className="space-y-3 p-4">
 								{selectedOccurrences.length === 0 ? (
-									<div className="text-sm text-muted-foreground">No schedules on this day.</div>
+									<div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+										No sessions scheduled on this day.
+									</div>
 								) : (
 									selectedOccurrences.map((o, idx) => (
-										<div key={idx} className="rounded-md border p-3">
-											<div className="text-sm font-medium">
-												{formatTime12h(o.start)}–{formatTime12h(o.end)}
+										<div key={idx} className="rounded-xl border bg-background p-3 space-y-2">
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-sm font-semibold">
+													{formatTime12h(o.start)} – {formatTime12h(o.end)}
+												</span>
+												<span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusColor(o.status)}`}>
+													{o.status}
+												</span>
 											</div>
-											<div className="text-xs text-muted-foreground">Tutorial: {o.tutorialId}</div>
-											<div className="mt-1 text-sm">Tutor: {o.tutor}</div>
-											<div className="text-sm text-muted-foreground">Student: {o.student}</div>
+											<div className="text-xs text-muted-foreground">ID: {o.tutorialId}</div>
+											<div className="grid grid-cols-2 gap-1 text-sm">
+												<div>
+													<div className="text-xs text-muted-foreground">Tutor</div>
+													<div className="font-medium truncate">{o.tutor}</div>
+												</div>
+												<div>
+													<div className="text-xs text-muted-foreground">Student</div>
+													<div className="font-medium truncate">{o.student}</div>
+												</div>
+											</div>
 										</div>
 									))
 								)}
 							</div>
 						</div>
-					) : null}
+					)}
 				</div>
 			</div>
 		</AppLayout>

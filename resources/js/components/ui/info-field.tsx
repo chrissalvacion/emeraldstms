@@ -22,16 +22,18 @@ export function InfoField({
     <div className={cn("flex items-start gap-3", className)}>
       <div
         className={cn(
-          "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground",
+          "mt-0.5 flex size-3 shrink-0 items-center justify-center rounded-md text-muted-foreground",
           iconClassName,
         )}
         aria-hidden="true"
       >
-        <Icon className="size-4" />
+        <Icon className="size-3" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="font-medium break-words">{value ?? "—"}</div>
+        <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+            <p className="text-sm text-foreground break-words">{value ?? "—"}</p>
+        </div>
       </div>
     </div>
   );

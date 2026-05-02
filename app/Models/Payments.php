@@ -10,6 +10,7 @@ class Payments extends Model
     protected $fillable = [
         'paymentid',
         'billingid',
+        'tutorialid',
         'studentname',
         'payment_date',
         'amount',

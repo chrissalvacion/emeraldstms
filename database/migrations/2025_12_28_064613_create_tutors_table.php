@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('lastname')->required();
             $table->date('date_of_birth')->nullable();
             $table->string('address')->nullable();
-            $table->string('email')->unique()->required();
+            $table->string('email')->unique()->nullable();
             $table->string('phone')->nullable();
             $table->string('license_number')->nullable();
             $table->date('hire_date')->nullable();

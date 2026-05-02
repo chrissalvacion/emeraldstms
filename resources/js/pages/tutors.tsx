@@ -1,9 +1,9 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage, Form } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { tutors } from '@/routes';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, MoreHorizontal } from 'lucide-react';
+import { Plus, MoreHorizontal, Upload } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import {
     DropdownMenu,
@@ -64,6 +64,11 @@ export default function Tutors() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [deletingName, setDeletingName] = useState('');
+
+    const [uploadOpen, setUploadOpen] = useState(false);
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const uploadErrors = (usePage().props as any).errors ?? {};
     const pageSize = 15;
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -75,15 +80,16 @@ export default function Tutors() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Tutors" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+            <div className="mx-auto flex h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
 
-                 <div className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white shadow-lg">
-                    <h1 className="text-3xl font-bold mb-2">Tutors</h1>
-                    <p className="text-emerald-50">Manage tutor records and information.</p>
+                <div className="w-full">
+                    <h1 className="mb-2 text-2xl font-bold">Tutors</h1>
+                    <p className="text-muted-foreground text-sm">Register and manage tutors records and information.</p>
                 </div>
 
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 max-w-sm">
+                <div className="rounded-xl border bg-background p-4">
+                    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                    <div className="w-full flex-1 sm:max-w-sm">
                         <Input
                             placeholder="Search tutors..."
                             value={query}
@@ -91,25 +97,27 @@ export default function Tutors() {
                         />
                     </div>
 
-                    <div>
-                        <Link
-                            href={`${tutors().url}/create`}
-                        >
+                    <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                        <Button variant="outline" onClick={() => setUploadOpen(true)}>
+                            <Upload className="mr-2 h-4 w-4" /> Bulk Upload
+                        </Button>
+                        <Link href={`${tutors().url}/create`}>
                             <Button>
                                 <Plus className="mr-2 h-4 w-4" /> Add Tutor
                             </Button>
                         </Link>
                     </div>
+                    </div>
                 </div>
 
                 
 
-                <div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+                <div className="relative min-h-[50vh] flex-1 overflow-hidden rounded-xl border bg-background md:min-h-min">
                     <div className="p-4">
                         <div className="overflow-x-auto">
                             <table className="w-full table-fixed">
                                 <thead>
-                                    <tr className="text-left text-sm text-muted-foreground">
+                                    <tr className="border-b text-left text-sm text-muted-foreground">
                                         <th className='px-3 py-2 w-[160px]'>Tutor ID</th>
                                         <th className="px-3 py-2 w-[300px]">Name</th>
                                         <th className="px-3 py-2 w-[260px]">Email</th>
@@ -133,10 +141,10 @@ export default function Tutors() {
                                         const name = `${t.firstname ?? ''} ${t.middlename ?? ''} ${t.lastname ?? ''}`.trim();
                                         const hired = t.hire_date ?? '';
                                         return (
-                                            <tr key={t.id} className="border-t">
+                                            <tr key={t.id} className="border-t odd:bg-transparent even:bg-muted/50">
                                                 <td className="px-3 py-2 break-words">{t.tutorid ?? '-'}</td>
                                                 <td className="px-3 py-2 break-words">
-                                                    <Link href={`${tutors().url}/${t.encrypted_id}`} className="text-dark">{name || '—'}</Link>
+                                                    <Link href={`${tutors().url}/${t.encrypted_id}`} className="font-medium text-primary hover:underline">{name || '—'}</Link>
                                                 </td>
                                                 <td className="px-3 py-2 break-words">{t.email ?? '-'}</td>
                                                 <td className="px-3 py-2 break-words">{t.phone ?? '-'}</td>
@@ -177,7 +185,7 @@ export default function Tutors() {
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center justify-between gap-4 px-4">
+                <div className="flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
                     <div className="text-sm text-muted-foreground">Showing {(list.length === 0) ? 0 : ((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, list.length)} of {list.length}</div>
                     <div className="flex items-center gap-2">
                         <Button size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}>Previous</Button>
@@ -185,6 +193,47 @@ export default function Tutors() {
                         <Button size="sm" onClick={() => setCurrentPage((p) => Math.min(Math.ceil(list.length / pageSize) || 1, p + 1))} disabled={currentPage >= Math.ceil(list.length / pageSize)}>Next</Button>
                     </div>
                 </div>
+                <Dialog open={uploadOpen} onOpenChange={(open) => { setUploadOpen(open); if (!open) setUploadFile(null); }}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Bulk Upload Tutors</DialogTitle>
+                            <DialogDescription>
+                                Upload a CSV or Excel file to import multiple tutors at once.
+                                Required columns: <strong>firstname</strong>, <strong>lastname</strong>, <strong>email</strong>.
+                                Optional: tutorid, middlename, date_of_birth, address, phone, license_number, hire_date.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-3 py-2">
+                            <input
+                                type="file"
+                                accept=".csv,.txt,.xlsx,.xls"
+                                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                                className="text-sm"
+                            />
+                            {uploadErrors.file && (
+                                <InputError message={uploadErrors.file} />
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => { setUploadOpen(false); setUploadFile(null); }}>Cancel</Button>
+                            <Button
+                                disabled={!uploadFile || isUploading}
+                                onClick={() => {
+                                    if (!uploadFile) return;
+                                    setIsUploading(true);
+                                    router.post('/tutors/import', { file: uploadFile }, {
+                                        forceFormData: true,
+                                        onSuccess: () => { setUploadOpen(false); setUploadFile(null); },
+                                        onFinish: () => setIsUploading(false),
+                                    });
+                                }}
+                            >
+                                {isUploading ? 'Uploading...' : 'Upload'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
                 <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                     <DialogContent>
                         <DialogHeader>

@@ -4,7 +4,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ArrowLeft, FileText, Download, Save } from 'lucide-react';
 
 interface AttendanceRecord {
@@ -13,6 +13,7 @@ interface AttendanceRecord {
     time_out: string;
     hours: number;
     tutorial_id: string;
+    student_name?: string | null;
     education_level?: string;
     hourly_rate?: number;
     amount?: number;
@@ -159,7 +160,7 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Payroll - ${payrollData.payrollid}`} />
 
-            <div className="px-4 py-6">
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                 <div className="mb-6">
                     <Link href="/payroll">
                         <Button variant="outline" size="sm">
@@ -171,9 +172,9 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                 {/* Header Info */}
                 <Card className="mb-6">
                     <CardHeader>
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <CardTitle>{payrollData.payrollid}</CardTitle>
+                                <CardTitle className="text-xl">{payrollData.payrollid}</CardTitle>
                                 <CardDescription>
                                     {formatDate(payrollData.period_start)} to {formatDate(payrollData.period_end)}
                                 </CardDescription>
@@ -194,8 +195,8 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                         <CardTitle>Summary</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid grid-cols-3 gap-6">
-                            <div className="bg-muted p-4 rounded-lg">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="rounded-lg border bg-muted/40 p-4">
                                 <p className="text-sm text-muted-foreground">
                                     Total Payable
                                 </p>
@@ -203,19 +204,19 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                     {formatCurrency(payrollData.total_amount)}
                                 </p>
                             </div>
-                            <div className="bg-muted p-4 rounded-lg">
+                            <div className="rounded-lg border bg-muted/40 p-4">
                                 <p className="text-sm text-muted-foreground">
                                     Total Received
                                 </p>
-                                <p className="text-2xl font-bold text-green-600">
+                                <p className="text-2xl font-bold text-primary">
                                     {formatCurrency(totalReceived)}
                                 </p>
                             </div>
-                            <div className="bg-muted p-4 rounded-lg">
+                            <div className="rounded-lg border bg-muted/40 p-4">
                                 <p className="text-sm text-muted-foreground">
                                     Remaining
                                 </p>
-                                <p className="text-2xl font-bold text-orange-600">
+                                <p className="text-2xl font-bold text-foreground">
                                     {formatCurrency(payrollData.total_amount - totalReceived)}
                                 </p>
                             </div>
@@ -225,12 +226,12 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                             <label htmlFor="status" className="text-sm font-medium">
                                 Payroll Status
                             </label>
-                            <div className="flex gap-2 mt-2">
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                                 <select
                                     id="status"
                                     value={status}
                                     onChange={(e) => setStatus(e.target.value)}
-                                    className="flex-1 px-3 py-2 border border-sidebar-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                                    className="h-10 flex-1 rounded-md border bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
                                     <option value="pending">Pending</option>
                                     <option value="approved">Approved</option>
@@ -255,10 +256,10 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                         <CardDescription>All payees included in this payroll run</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
+                        <div className="overflow-x-auto rounded-lg border bg-background">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="bg-muted text-muted-foreground">
+                                    <tr className="border-b bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                         <th className="px-3 py-2 text-left w-[60px]">#</th>
                                         <th className="px-3 py-2 text-left">Tutor</th>
                                         <th className="px-3 py-2 text-left">Avg Rate</th>
@@ -282,8 +283,8 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                         </tr>
                                     ) : (
                                         entries.map((entry, index) => (
-                                            <>
-                                            <tr key={entry.id} className="border-t">
+                                            <Fragment key={entry.id}>
+                                            <tr className="border-t odd:bg-transparent even:bg-muted/30">
                                                 <td className="px-3 py-2 text-muted-foreground">
                                                     {index + 1}
                                                 </td>
@@ -304,6 +305,7 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                                         variant="ghost"
                                                         size="sm"
                                                         onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
+                                                        className="h-8 px-2"
                                                     >
                                                         {entry.attendance_records.length} records
                                                         {expandedEntry === entry.id ? ' ▲' : ' ▼'}
@@ -344,15 +346,15 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                                 </td>
                                             </tr>
                                             {expandedEntry === entry.id && (
-                                                <tr key={`${entry.id}-details`}>
-                                                    <td colSpan={9} className="px-3 py-4 bg-muted/50">
+                                                <tr>
+                                                    <td colSpan={9} className="bg-muted/40 px-3 py-4">
                                                         <div className="text-sm font-medium mb-3">Attendance Details</div>
-                                                        <div className="overflow-x-auto rounded-md border border-sidebar-border bg-background">
+                                                        <div className="overflow-x-auto rounded-md border bg-background">
                                                             <table className="w-full text-xs">
                                                                 <thead>
-                                                                    <tr className="bg-muted/50">
+                                                                    <tr className="bg-muted/50 text-muted-foreground">
                                                                         <th className="px-2 py-1 text-left">Date</th>
-                                                                        <th className="px-2 py-1 text-left">Tutorial ID</th>
+                                                                        <th className="px-2 py-1 text-left">Student Name</th>
                                                                         <th className="px-2 py-1 text-left">Level</th>
                                                                         <th className="px-2 py-1 text-left">Time In</th>
                                                                         <th className="px-2 py-1 text-left">Time Out</th>
@@ -365,9 +367,9 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                                                     {entry.attendance_records.map((record, idx) => (
                                                                         <tr key={idx} className="border-t">
                                                                             <td className="px-2 py-1">{formatDate(record.date)}</td>
-                                                                            <td className="px-2 py-1">{record.tutorial_id}</td>
+                                                                            <td className="px-2 py-1">{record.student_name || '—'}</td>
                                                                             <td className="px-2 py-1">
-                                                                                <span className="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
+                                                                                <span className="rounded bg-muted px-2 py-0.5 text-xs text-foreground">
                                                                                     {record.education_level || '—'}
                                                                                 </span>
                                                                             </td>
@@ -384,7 +386,7 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                                                     </td>
                                                 </tr>
                                             )}
-                                            </>
+                                            </Fragment>
                                         ))
                                     )}
                                 </tbody>
@@ -394,7 +396,7 @@ export default function PayrollShow({ payroll: payrollData }: { payroll: Payroll
                 </Card>
 
                 {/* Export Actions */}
-                <div className="mt-6 flex gap-3">
+                <div className="mt-6 flex flex-col gap-3 rounded-xl border bg-background p-4 sm:flex-row">
                     <Button
                         variant="outline"
                         onClick={() => {

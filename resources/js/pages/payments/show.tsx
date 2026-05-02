@@ -14,7 +14,6 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     CreditCard,
-    ReceiptText,
     User,
     Calendar,
     DollarSign,
@@ -32,7 +31,8 @@ import { useState } from 'react';
 type Payment = {
     id: number;
     paymentid: string;
-    billingid: string;
+    billingid?: string | null;
+    tutorialid?: string | null;
     studentname: string;
     payment_date: string;
     amount: string | number;
@@ -49,7 +49,6 @@ type Payment = {
 export default function PaymentShow() {
     const { props } = usePage();
     const payment = (props as any).payment as Payment;
-    const billingEncryptedId = ((props as any).billing_encrypted_id ?? null) as string | null;
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const { delete: destroy, processing } = useForm({});
@@ -81,7 +80,7 @@ export default function PaymentShow() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Payment ${payment?.paymentid ?? ''}`} />
 
-            <div className="m-5 space-y-4">
+            <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <Link href="/billings">
@@ -133,7 +132,7 @@ export default function PaymentShow() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                <div className="rounded-xl border bg-background p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <Info className="h-4 w-4" />
                         Payment Details
@@ -141,26 +140,13 @@ export default function PaymentShow() {
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <InfoField icon={CreditCard} label="Payment ID" value={payment?.paymentid ?? '-'} />
-                        <InfoField
-                            icon={ReceiptText}
-                            label="Billing ID"
-                            value={
-                                billingEncryptedId ? (
-                                    <Link href={`/billings/${billingEncryptedId}`} className="text-primary">
-                                        {payment?.billingid ?? '-'}
-                                    </Link>
-                                ) : (
-                                    payment?.billingid ?? '-'
-                                )
-                            }
-                        />
+                        <InfoField icon={Hash} label="Tutorial ID" value={payment?.tutorialid ?? '-'} />
 
                         <InfoField icon={User} label="Student" value={payment?.studentname ?? '-'} />
                         <InfoField icon={Calendar} label="Payment date" value={formatDate(payment?.payment_date)} />
                         <InfoField icon={DollarSign} label="Amount" value={formatAmount(payment?.amount)} />
                         <InfoField icon={Landmark} label="Method" value={payment?.payment_method ?? '-'} />
                         <InfoField icon={BadgeCheck} label="Status" value={(payment?.status ?? '').toLowerCase() || '-'} />
-                        <InfoField icon={Hash} label="Transaction reference" value={payment?.transaction_reference ?? '-'} />
                         <InfoField icon={UserRound} label="Payer name" value={payment?.payer_name ?? '-'} />
 
                         <InfoField

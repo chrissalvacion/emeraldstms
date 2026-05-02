@@ -46,8 +46,8 @@ export default function BillingEdit() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Edit Billing" />
 
-            <div className="m-5">
-                <h1 className="text-2xl font-semibold mb-4">Edit Billing</h1>
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+                <h1 className="text-2xl font-semibold mb-6">Edit Billing</h1>
 
                 <form
                     className="space-y-6"
@@ -56,7 +56,7 @@ export default function BillingEdit() {
                         put(`/billings/${billing.encrypted_id}`);
                     }}
                 >
-                    <section className="p-4 rounded-md bg-background">
+                    <section className="rounded-xl border bg-background p-6">
                         <h2 className="text-lg font-medium mb-2">Billing Details</h2>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>

@@ -2,8 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, FileText, DollarSign, Calendar, User, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, FileText, DollarSign, Clock, CheckCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { type BreadcrumbItem } from '@/types';
 
@@ -26,14 +25,13 @@ interface PaidBillingsProps {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Reports', href: '/reports' },
-    { title: 'Paid Billings', href: '/reports/paid-billings' }
+    { title: 'Paid Billings', href: '/reports/paid-billings' },
 ];
 
 const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     } catch {
         return dateStr;
     }
@@ -50,202 +48,165 @@ export default function PaidBillingsReport({ billings }: PaidBillingsProps) {
 
     const filteredBillings = useMemo(() => {
         if (!searchQuery.trim()) return billings;
-
         const query = searchQuery.toLowerCase();
-        return billings.filter(billing => 
-            billing.billingid?.toLowerCase().includes(query) ||
-            billing.studentid?.toLowerCase().includes(query) ||
-            billing.student_name?.toLowerCase().includes(query) ||
-            billing.status?.toLowerCase().includes(query)
+        return billings.filter(b =>
+            b.billingid?.toLowerCase().includes(query) ||
+            b.studentid?.toLowerCase().includes(query) ||
+            b.student_name?.toLowerCase().includes(query) ||
+            b.status?.toLowerCase().includes(query)
         );
     }, [billings, searchQuery]);
 
-    const totalAmount = useMemo(() => {
-        return filteredBillings.reduce((sum, billing) => sum + (typeof billing.amount === 'number' ? billing.amount : parseFloat(billing.amount)), 0);
-    }, [filteredBillings]);
-
-    const totalPaid = useMemo(() => {
-        return filteredBillings.reduce((sum, billing) => sum + billing.total_paid, 0);
-    }, [filteredBillings]);
-
-    const totalHours = useMemo(() => {
-        return filteredBillings.reduce((sum, billing) => sum + billing.total_hours, 0);
-    }, [filteredBillings]);
+    const totalAmount = useMemo(() => filteredBillings.reduce((sum, b) => sum + (typeof b.amount === 'number' ? b.amount : parseFloat(b.amount)), 0), [filteredBillings]);
+    const totalPaid = useMemo(() => filteredBillings.reduce((sum, b) => sum + b.total_paid, 0), [filteredBillings]);
+    const totalHours = useMemo(() => filteredBillings.reduce((sum, b) => sum + b.total_hours, 0), [filteredBillings]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Paid Billings Report" />
-            
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+
+            <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+
                 {/* Header */}
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Link href="/reports">
                             <Button variant="ghost" size="icon">
-                                <ArrowLeft className="h-5 w-5" />
+                                <ArrowLeft className="h-4 w-4" />
                             </Button>
                         </Link>
                         <div>
-                            <h1 className="text-2xl font-bold">Paid Billings Report</h1>
-                            <p className="text-sm text-muted-foreground">
-                                View all fully paid billing statements
-                            </p>
+                            <h1 className="text-2xl font-semibold">Paid Billings Report</h1>
+                            <p className="text-sm text-muted-foreground">View all fully paid billing statements.</p>
                         </div>
                     </div>
-                    <Button variant="outline" onClick={() => window.print()}>
+                    <Button
+                        variant="outline"
+                        onClick={() => window.open('/reports/paid-billings/pdf', '_blank', 'noopener,noreferrer')}
+                    >
                         <FileText className="mr-2 h-4 w-4" />
-                        Print Report
+                        Generate PDF
                     </Button>
                 </div>
 
-                {/* Summary Cards */}
-                <div className="grid gap-4 md:grid-cols-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Paid Bills</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{filteredBillings.length}</div>
-                            <p className="text-xs text-muted-foreground">billing records</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                            <DollarSign className="h-4 w-4 text-green-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{formatAmount(totalAmount)}</div>
-                            <p className="text-xs text-muted-foreground">total collected</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Payments Received</CardTitle>
-                            <DollarSign className="h-4 w-4 text-emerald-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-emerald-600">{formatAmount(totalPaid)}</div>
-                            <p className="text-xs text-muted-foreground">total paid</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
+                {/* Summary stat cards */}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div className="rounded-xl border bg-background p-4">
+                        <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">Total Paid Bills</span>
+                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <p className="text-2xl font-semibold text-green-600 dark:text-green-400">{filteredBillings.length}</p>
+                        <p className="text-xs text-muted-foreground">billing records</p>
+                    </div>
+                    <div className="rounded-xl border bg-background p-4">
+                        <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">Total Revenue</span>
+                            <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <p className="text-2xl font-semibold text-green-600 dark:text-green-400">{formatAmount(totalAmount)}</p>
+                        <p className="text-xs text-muted-foreground">total collected</p>
+                    </div>
+                    <div className="rounded-xl border bg-background p-4">
+                        <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">Payments Received</span>
+                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-2xl font-semibold">{formatAmount(totalPaid)}</p>
+                        <p className="text-xs text-muted-foreground">total paid</p>
+                    </div>
+                    <div className="rounded-xl border bg-background p-4">
+                        <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">Total Hours</span>
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{totalHours.toFixed(2)}</div>
-                            <p className="text-xs text-muted-foreground">tutorial hours</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Search and Filters */}
-                <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                        <Input
-                            type="search"
-                            placeholder="Search by billing ID, student name, or student ID..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="max-w-md"
-                        />
+                        </div>
+                        <p className="text-2xl font-semibold">{totalHours.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">tutorial hours</p>
                     </div>
                 </div>
 
-                {/* Billings Table */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Paid Billings</CardTitle>
-                        <CardDescription>
-                            {filteredBillings.length} {filteredBillings.length === 1 ? 'billing' : 'billings'} found
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                                <thead>
-                                    <tr className="border-b text-left text-sm text-muted-foreground">
-                                        <th className="pb-3 font-medium">Billing ID</th>
-                                        <th className="pb-3 font-medium">Student</th>
-                                        <th className="pb-3 font-medium">Period</th>
-                                        <th className="pb-3 font-medium text-center">Hours</th>
-                                        <th className="pb-3 font-medium text-right">Amount</th>
-                                        <th className="pb-3 font-medium text-right">Total Paid</th>
-                                        <th className="pb-3 font-medium">Status</th>
-                                        <th className="pb-3 font-medium">Actions</th>
+                {/* Search */}
+                <div className="flex items-center gap-4">
+                    <Input
+                        type="search"
+                        placeholder="Search by billing ID, student name, or student ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="max-w-md"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                        {filteredBillings.length} {filteredBillings.length === 1 ? 'billing' : 'billings'} found
+                    </span>
+                </div>
+
+                {/* Table */}
+                <div className="rounded-xl border bg-background">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b text-left text-sm text-muted-foreground">
+                                    <th className="px-4 py-3 font-medium">Billing ID</th>
+                                    <th className="px-4 py-3 font-medium">Student</th>
+                                    <th className="px-4 py-3 font-medium">Billing Date</th>
+                                    <th className="px-4 py-3 font-medium text-center">Hours</th>
+                                    <th className="px-4 py-3 font-medium text-right">Amount</th>
+                                    <th className="px-4 py-3 font-medium text-right">Total Paid</th>
+                                    <th className="px-4 py-3 font-medium">Status</th>
+                                    <th className="px-4 py-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredBillings.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                                            No paid billings found.
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredBillings.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                                                No paid billings found
+                                ) : (
+                                    filteredBillings.map((billing) => (
+                                        <tr key={billing.id} className="border-t odd:bg-transparent even:bg-muted/50 transition-colors hover:bg-muted/70">
+                                            <td className="px-4 py-3">
+                                                <Link
+                                                    href={`/billings/${billing.id}`}
+                                                    className="font-medium text-primary hover:underline"
+                                                >
+                                                    {billing.billingid}
+                                                </Link>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm">
+                                                {billing.student_name || billing.studentid}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                                                {formatDate(billing.billing_startdate)} – {formatDate(billing.billing_enddate)}
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-sm">
+                                                {billing.total_hours.toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm font-medium">
+                                                {formatAmount(billing.amount)}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm font-semibold text-green-600 dark:text-green-400">
+                                                {formatAmount(billing.total_paid)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    {billing.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Link href={`/billings/${billing.id}`}>
+                                                    <Button variant="outline" size="sm">View</Button>
+                                                </Link>
                                             </td>
                                         </tr>
-                                    ) : (
-                                        filteredBillings.map((billing) => (
-                                            <tr key={billing.id} className="border-b hover:bg-muted/50 transition-colors">
-                                                <td className="py-3">
-                                                    <Link
-                                                        href={`/billings/${billing.id}`}
-                                                        className="font-medium text-primary hover:underline"
-                                                    >
-                                                        {billing.billingid}
-                                                    </Link>
-                                                </td>
-                                                <td className="py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <User className="h-4 w-4 text-muted-foreground" />
-                                                        <span>{billing.student_name || billing.studentid}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                        <span className="text-sm">
-                                                            {formatDate(billing.billing_startdate)} - {formatDate(billing.billing_enddate)}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Clock className="h-4 w-4 text-muted-foreground" />
-                                                        <span>{billing.total_hours.toFixed(2)}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 text-right font-medium">
-                                                    {formatAmount(billing.amount)}
-                                                </td>
-                                                <td className="py-3 text-right text-green-600 font-bold">
-                                                    {formatAmount(billing.total_paid)}
-                                                </td>
-                                                <td className="py-3">
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-0.5 text-xs font-medium">
-                                                        <CheckCircle className="h-3 w-3" />
-                                                        {billing.status}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3">
-                                                    <Link href={`/billings/${billing.id}`}>
-                                                        <Button variant="outline" size="sm">
-                                                            View Details
-                                                        </Button>
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
         </AppLayout>
     );

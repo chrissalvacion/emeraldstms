@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Billing;
 use App\Models\Payments;
 use App\Models\Students;
+use App\Models\Tutorials;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class PaymentsController extends Controller
@@ -37,6 +38,12 @@ class PaymentsController extends Controller
      */
     public function index()
     {
+        if (!Schema::hasTable('payments')) {
+            return Inertia::render('payments/index', [
+                'payments' => [],
+            ]);
+        }
+
         $payments = Payments::orderBy('id', 'desc')->get();
 
         return Inertia::render('payments/index', [
@@ -49,32 +56,52 @@ class PaymentsController extends Controller
      */
     public function create(Request $request)
     {
-        $billingId = (string) $request->query('billingid', '');
+        if (!Schema::hasTable('tutorials')) {
+            return Inertia::render('payments/create', [
+                'prefill' => null,
+                'tutorials' => [],
+                'today' => Carbon::now($this->localTimezone())->toDateString(),
+            ]);
+        }
+
+        $tutorialId = (string) $request->query('tutorialid', '');
 
         $prefill = null;
-        if (!empty($billingId)) {
-            $billing = Billing::where('billingid', $billingId)->first();
-            if ($billing) {
+        if (!empty($tutorialId)) {
+            $tutorial = Tutorials::where('tutorialid', $tutorialId)->first();
+            if ($tutorial) {
                 $prefill = [
-                    'billingid' => $billing->billingid,
-                    'studentname' => $this->resolveStudentName($billing->studentid),
+                    'tutorialid' => $tutorial->tutorialid,
+                    'studentname' => $this->resolveStudentName($tutorial->studentid),
                 ];
             }
         }
 
-        $billings = Billing::where('status', 'unpaid')
+        $tutorials = Tutorials::query()
             ->orderBy('id', 'desc')
             ->get()
-            ->map(fn($b) => [
-                'billingid' => $b->billingid,
-                'studentname' => $this->resolveStudentName($b->studentid),
-                'status' => $b->status,
-            ])
+            ->map(function ($t) {
+                $rate = (float) ($t->tutee_fee_amount ?? 0);
+                $completedHours = (float) ($t->completed_hours ?? 0);
+                $estimatedAmount = round(max(0, $completedHours) * max(0, $rate), 2);
+
+                return [
+                    'tutorialid' => $t->tutorialid,
+                    'studentid' => $t->studentid,
+                    'studentname' => $this->resolveStudentName($t->studentid),
+                    'status' => $t->status,
+                    'start_date' => $t->start_date ? Carbon::parse($t->start_date)->toDateString() : null,
+                    'end_date' => $t->end_date ? Carbon::parse($t->end_date)->toDateString() : null,
+                    'tutee_fee_amount' => round($rate, 2),
+                    'completed_hours' => round($completedHours, 2),
+                    'estimated_amount' => $estimatedAmount,
+                ];
+            })
             ->values();
 
         return Inertia::render('payments/create', [
             'prefill' => $prefill,
-            'billings' => $billings,
+            'tutorials' => $tutorials,
             'today' => Carbon::now($this->localTimezone())->toDateString(),
         ]);
     }
@@ -85,7 +112,7 @@ class PaymentsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'billingid' => 'required|string|max:255|exists:billings,billingid',
+            'tutorialid' => 'required|string|max:255|exists:tutorials,tutorialid',
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0',
             'payment_method' => 'required|string|max:255',
@@ -96,18 +123,15 @@ class PaymentsController extends Controller
             'nature_of_collection' => 'nullable|string|max:255',
         ]);
 
-        $billing = Billing::where('billingid', $validated['billingid'])->firstOrFail();
+        $tutorial = Tutorials::where('tutorialid', (string) $validated['tutorialid'])->firstOrFail();
 
-        $validated['studentname'] = $this->resolveStudentName($billing->studentid) ?? '';
+        $validated['billingid'] = null;
+        $validated['studentname'] = $this->resolveStudentName($tutorial->studentid) ?? '';
         if (empty($validated['status'])) {
-            $validated['status'] = 'Paid';
+            $validated['status'] = 'Recorded';
         }
 
         Payments::create($validated);
-
-        $billing->update([
-            'status' => 'paid',
-        ]);
 
         return redirect()->to(route('billings') . '?tab=payments')->with('success', 'Payment created.');
     }
@@ -117,11 +141,11 @@ class PaymentsController extends Controller
      */
     public function show(Payments $payments)
     {
-        $billing = Billing::where('billingid', $payments->billingid)->first();
+        $tutorial = Tutorials::where('tutorialid', (string) $payments->tutorialid)->first();
 
         return Inertia::render('payments/show', [
             'payment' => $payments,
-            'billing_encrypted_id' => $billing?->encrypted_id,
+            'tutorial_student_name' => $tutorial ? $this->resolveStudentName($tutorial->studentid) : null,
         ]);
     }
 
@@ -130,11 +154,11 @@ class PaymentsController extends Controller
      */
     public function edit(Payments $payments)
     {
-        $billing = Billing::where('billingid', $payments->billingid)->first();
+        $tutorial = Tutorials::where('tutorialid', (string) $payments->tutorialid)->first();
 
         return Inertia::render('payments/edit', [
             'payment' => $payments,
-            'billing_encrypted_id' => $billing?->encrypted_id,
+            'tutorial_student_name' => $tutorial ? $this->resolveStudentName($tutorial->studentid) : null,
         ]);
     }
 
@@ -144,6 +168,7 @@ class PaymentsController extends Controller
     public function update(Request $request, Payments $payments)
     {
         $validated = $request->validate([
+            'tutorialid' => 'required|string|max:255|exists:tutorials,tutorialid',
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0',
             'payment_method' => 'required|string|max:255',
@@ -153,6 +178,11 @@ class PaymentsController extends Controller
             'remarks' => 'nullable|string',
             'nature_of_collection' => 'nullable|string|max:255',
         ]);
+
+        $tutorial = Tutorials::where('tutorialid', (string) $validated['tutorialid'])->firstOrFail();
+
+        $validated['billingid'] = null;
+        $validated['studentname'] = $this->resolveStudentName($tutorial->studentid) ?? '';
 
         $payments->update($validated);
 
@@ -165,16 +195,7 @@ class PaymentsController extends Controller
      */
     public function destroy(Payments $payments)
     {
-        $billingId = $payments->billingid;
         $payments->delete();
-
-        $billing = Billing::where('billingid', $billingId)->first();
-        if ($billing) {
-            $hasOtherPayments = Payments::where('billingid', $billingId)->exists();
-            if (!$hasOtherPayments) {
-                $billing->update(['status' => 'unpaid']);
-            }
-        }
 
         return redirect()->to(route('billings') . '?tab=payments')->with('success', 'Payment deleted.');
     }

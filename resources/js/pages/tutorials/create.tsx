@@ -2,11 +2,32 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useEffect, useMemo, useState } from 'react';
-import { students, tutorials } from '@/routes';
-import { ArrowLeft } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import InputError from '@/components/input-error';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { tutorials } from '@/routes';
+import { ArrowLeft, ChevronDown, X } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 
 type ScheduleEntry = { days: string[]; start_time: string; end_time: string };
+
+type PackageRecord = {
+    id: number;
+    name: string;
+    description?: string | null;
+    type?: string | null;
+    level?: string | null;
+    duration_hours?: number | null;
+    tutee_fee_amount?: number | string | null;
+    tutor_fee_amount?: number | string | null;
+    status?: string | null;
+};
 
 function normalizeDay(day: string): string | null {
     const key = day.trim().toLowerCase();
@@ -115,13 +136,13 @@ function schedulesConflict(
 }
 
 export default function TutorialCreate() {
+    const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
     const { props } = usePage();
     const tutors = (props as any).tutors ?? [];
     const studentsList = (props as any).students ?? [];
     const student = (props as any).student ?? null;
+    const packages = ((props as any).packages ?? []) as PackageRecord[];
     const errors = (props as any).errors ?? {};
-    const defaultRateSecondary = Number((props as any).default_rate_secondary ?? 0) || 0;
-    const defaultRateGradeSchool = Number((props as any).default_rate_grade_school ?? 0) || 0;
 
     const [selectedTutor, setSelectedTutor] = useState<number | null>(tutors.length ? tutors[0].id : null);
     const [tutorQuery, setTutorQuery] = useState<string>(tutors.length ? `${tutors[0].firstname} ${tutors[0].lastname}` : '');
@@ -136,10 +157,12 @@ export default function TutorialCreate() {
         { days: [], start_time: '', end_time: '' },
     ]);
 
-    const [educationLevel, setEducationLevel] = useState<'JHS' | 'SHS' | 'Elementary' | ''>('');
-    const [gradeLevel, setGradeLevel] = useState<string>('');
-    const [computedRate, setComputedRate] = useState<number | null>(null);
-    const [billingType, setBillingType] = useState<'per-session' | 'prepaid-package'>('per-session');
+    const [selectedPackageId, setSelectedPackageId] = useState<number | ''>('');
+    const [packageMode, setPackageMode] = useState<'per-session' | 'prepaid' | 'promotional' | ''>('');
+    const [level, setLevel] = useState<string>('');
+    const [tuteeFeeAmount, setTuteeFeeAmount] = useState<string>('');
+    const [tutorFeeAmount, setTutorFeeAmount] = useState<string>('');
+    const [prepaidHours, setPrepaidHours] = useState<string>('');
     const [prepaidAmount, setPrepaidAmount] = useState<string>('');
     const [overrideAvailability, setOverrideAvailability] = useState(false);
 
@@ -258,172 +281,279 @@ export default function TutorialCreate() {
     }, [availability, availableTutors, cleanedSchedules.length, selectedTutor, startDate]);
 
     useEffect(() => {
-        // Apply rate automatically when education level is selected
-        if (!educationLevel) {
-            setComputedRate(null);
-            return;
-        }
+        if (!packages.length || selectedPackageId === '') return;
+        const pkg = packages.find((p) => p.id === selectedPackageId);
+        if (!pkg) return;
 
-        if (educationLevel === 'JHS' || educationLevel === 'SHS') {
-            setComputedRate(defaultRateSecondary > 0 ? defaultRateSecondary : null);
-        } else if (educationLevel === 'Elementary') {
-            setComputedRate(defaultRateGradeSchool > 0 ? defaultRateGradeSchool : null);
-        } else {
-            setComputedRate(null);
+        const type = String(pkg.type ?? '').toLowerCase();
+        const hours = Number(pkg.duration_hours ?? 0) || 0;
+        const isPromotional = type.includes('promo');
+        const isPrepaid = type.includes('prepaid') || type.includes('pre-paid');
+
+        setPackageMode(isPromotional ? 'promotional' : isPrepaid ? 'prepaid' : 'per-session');
+        setLevel(String(pkg.level ?? '') || '');
+        setTuteeFeeAmount(pkg.tutee_fee_amount !== null && pkg.tutee_fee_amount !== undefined ? String(pkg.tutee_fee_amount) : '');
+        setTutorFeeAmount(pkg.tutor_fee_amount !== null && pkg.tutor_fee_amount !== undefined ? String(pkg.tutor_fee_amount) : '');
+        setPrepaidHours(hours > 0 ? String(hours) : '');
+
+        if (!isPrepaid && !isPromotional) {
+            setPrepaidAmount('');
         }
-    }, [educationLevel, defaultRateSecondary, defaultRateGradeSchool]);
+    }, [packages, selectedPackageId]);
+
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        if (!selectedTutor) return;
+
+        const postStudentId = student ? student.id : selectedStudent;
+
+        router.post(
+            '/tutorials',
+            {
+                studentid: postStudentId,
+                tutorid: selectedTutor,
+                packageid: selectedPackageId === '' ? null : selectedPackageId,
+                prepaid_amount: prepaidAmount ? parseFloat(prepaidAmount) : null,
+                start_date: startDate || null,
+                end_date: endDate || null,
+                schedules: cleanedSchedules,
+                override_availability: overrideAvailability,
+            },
+            {
+                onSuccess: () => {
+                    if (student) {
+                        router.visit(`/students/${student.encrypted_id}`);
+                    } else {
+                        router.visit('/tutorials');
+                    }
+                },
+            },
+        );
+    };
 
     return (
         <AppLayout>
             <Head title="Create Tutorial" />
 
-            <div className="p-4">
-                <div className="mb-4 flex items-center gap-">
+            <div className="mx-auto max-w-5xl px-4 py-8">
+                <div className="mb-8 flex items-center gap-2">
                     <Link href={tutorials().url}>
                         <Button variant="ghost">
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
                     </Link>
-                    <h1 className="text-2xl font-semibold">Create Tutorial{student ? ` for ${student.firstname} ${student.lastname}` : ''}</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">
+                        Create Tutorial{student ? ` for ${student.firstname} ${student.lastname}` : ''}
+                    </h1>
                 </div>
 
-                <div className="grid w-full gap-6 md:grid-cols-3">
-                    <div className="w-full rounded-md border bg-background p-4 md:col-span-2">
-                        <div className="grid gap-6">
-                            <div>
-                            <label className="block text-sm text-muted-foreground mb-1">Student</label>
-                            {student ? (
-                                <Input value={`${student.firstname} ${student.lastname}`} readOnly />
-                            ) : (
-                                <>
-                                    <div className="relative">
-                                        <Input
-                                            value={studentQuery}
-                                            placeholder="Search student"
-                                            onChange={(e) => {
-                                                const val = (e.target as HTMLInputElement).value;
-                                                setStudentQuery(val);
-                                                setStudentOpen(true);
+                <div className="grid gap-8 lg:grid-cols-3">
+                    <form onSubmit={submit} className="space-y-8 lg:col-span-2">
+                        <fieldset>
+                            <legend className="text-base font-semibold leading-7">Student & Dates</legend>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                Select the tutee and the active date range.
+                            </p>
 
-                                                const found = (studentsList as any[]).find((s: any) => {
-                                                    const name = `${s.firstname ?? ''} ${s.lastname ?? ''}`.trim();
-                                                    return name === val || String(s.tuteeid ?? '') === val || String(s.id ?? '') === val;
-                                                });
-                                                setSelectedStudent(found ? found.id : null);
-                                            }}
-                                            onFocus={() => setStudentOpen(true)}
-                                            onBlur={() => {
-                                                // allow click selection before closing
-                                                setTimeout(() => setStudentOpen(false), 150);
-                                            }}
-                                        />
+                            <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                                <div className="sm:col-span-2">
+                                    <Label className="block text-sm font-medium leading-6">Student</Label>
+                                    <div className="mt-2">
+                                        {student ? (
+                                            <Input value={`${student.firstname} ${student.lastname}`} readOnly />
+                                        ) : (
+                                            <div className="relative">
+                                                <Input
+                                                    value={studentQuery}
+                                                    placeholder="Search student"
+                                                    onChange={(e) => {
+                                                        const val = (e.target as HTMLInputElement).value;
+                                                        setStudentQuery(val);
+                                                        setStudentOpen(true);
 
-                                        {studentOpen && (
-                                            <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
-                                                <div className="max-h-64 overflow-auto p-1">
-                                                    {studentSuggestions.length === 0 ? (
-                                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
-                                                    ) : (
-                                                        studentSuggestions.map((s: any) => {
+                                                        const found = (studentsList as any[]).find((s: any) => {
                                                             const name = `${s.firstname ?? ''} ${s.lastname ?? ''}`.trim();
-                                                            const rightId = s.tuteeid ?? s.id;
                                                             return (
-                                                                <button
-                                                                    key={s.id}
-                                                                    type="button"
-                                                                    className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-                                                                    onMouseDown={(e) => e.preventDefault()}
-                                                                    onClick={() => {
-                                                                        setStudentQuery(name);
-                                                                        setSelectedStudent(s.id);
-                                                                        setStudentOpen(false);
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center justify-between gap-3">
-                                                                        <span className="truncate font-medium">{name}</span>
-                                                                        <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
-                                                                    </div>
-                                                                </button>
+                                                                name === val ||
+                                                                String(s.tuteeid ?? '') === val ||
+                                                                String(s.id ?? '') === val
                                                             );
-                                                        })
-                                                    )}
-                                                </div>
+                                                        });
+                                                        setSelectedStudent(found ? found.id : null);
+                                                    }}
+                                                    onFocus={() => setStudentOpen(true)}
+                                                    onBlur={() => {
+                                                        setTimeout(() => setStudentOpen(false), 150);
+                                                    }}
+                                                />
+
+                                                {studentOpen && (
+                                                    <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+                                                        <div className="max-h-64 overflow-auto p-1">
+                                                            {studentSuggestions.length === 0 ? (
+                                                                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                                                    No matches
+                                                                </div>
+                                                            ) : (
+                                                                studentSuggestions.map((s: any) => {
+                                                                    const name = `${s.firstname ?? ''} ${s.lastname ?? ''}`.trim();
+                                                                    const rightId = s.tuteeid ?? s.id;
+                                                                    return (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            type="button"
+                                                                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                                                                            onMouseDown={(e) => e.preventDefault()}
+                                                                            onClick={() => {
+                                                                                setStudentQuery(name);
+                                                                                setSelectedStudent(s.id);
+                                                                                setStudentOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex items-center justify-between gap-3">
+                                                                                <span className="truncate font-medium">
+                                                                                    {name}
+                                                                                </span>
+                                                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                                                    {rightId ?? ''}
+                                                                                </span>
+                                                                            </div>
+                                                                        </button>
+                                                                    );
+                                                                })
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
+                                    <InputError message={errors.studentid} />
+                                </div>
 
-                                    {errors.studentid ? (
-                                        <div className="mt-1 text-sm text-destructive">{errors.studentid}</div>
-                                    ) : null}
-                                </>
-                            )}
-                        </div>
+                                <div>
+                                    <Label className="block text-sm font-medium leading-6">Start Date</Label>
+                                    <Input
+                                        className="mt-2"
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                    />
+                                    <InputError message={errors.start_date} />
+                                </div>
 
-                        <div className="flex gap-2">
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">Start Date</label>
-                                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                                {errors.start_date ? (
-                                    <div className="mt-1 text-sm text-destructive">{errors.start_date}</div>
-                                ) : null}
+                                <div>
+                                    <Label className="block text-sm font-medium leading-6">End Date</Label>
+                                    <Input
+                                        className="mt-2"
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                    />
+                                    <InputError message={errors.end_date} />
+                                </div>
                             </div>
+                        </fieldset>
 
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">End Date</label>
-                                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                                {errors.end_date ? (
-                                    <div className="mt-1 text-sm text-destructive">{errors.end_date}</div>
-                                ) : null}
-                            </div>
-                        </div>
+                        <fieldset>
+                            <legend className="text-base font-semibold leading-7">Schedule</legend>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                Add up to 5 schedule entries with days and time range.
+                            </p>
 
-                        <div>
-                            <label className="block text-sm text-muted-foreground mb-1">Schedules (up to 5)</label>
-                            <div className="space-y-2">
+                            <div className="mt-6 space-y-3">
                                 {schedules.map((sch, idx) => (
-                                    <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                        <div className="flex flex-wrap gap-2">
-                                            {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((day) => {
-                                                const active = sch.days.includes(day);
-                                                return (
-                                                    <button
-                                                        key={day}
+                                    <div key={idx} className="space-y-2">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
                                                         type="button"
-                                                        onClick={() => {
-                                                            const next = [...schedules];
-                                                            const days = new Set(next[idx].days);
-                                                            if (days.has(day)) days.delete(day); else days.add(day);
-                                                            next[idx] = { ...next[idx], days: Array.from(days) };
-                                                            setSchedules(next);
-                                                        }}
-                                                        className={`px-3 py-1 rounded-full border ${active ? 'bg-primary text-white' : 'bg-transparent'}`}>
-                                                        {day.slice(0,3)}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
+                                                        variant="outline"
+                                                        className="h-auto min-h-9 w-full justify-between px-3 py-2 font-normal sm:flex-1"
+                                                    >
+                                                        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                                                            {sch.days.length ? (
+                                                                <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden">
+                                                                    {sch.days.map((day) => (
+                                                                        <Badge
+                                                                            key={day}
+                                                                            variant="secondary"
+                                                                            className="shrink-0 rounded-full"
+                                                                        >
+                                                                            {day.slice(0, 3)}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">Select days</span>
+                                                            )}
+                                                        </div>
+                                                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="start" className="w-56">
+                                                    {daysOfWeek.map((day) => (
+                                                        <DropdownMenuCheckboxItem
+                                                            key={day}
+                                                            checked={sch.days.includes(day)}
+                                                            onSelect={(e) => e.preventDefault()}
+                                                            onCheckedChange={(checked) => {
+                                                                const next = [...schedules];
+                                                                const days = new Set(next[idx].days);
+                                                                if (checked) days.add(day);
+                                                                else days.delete(day);
+                                                                next[idx] = {
+                                                                    ...next[idx],
+                                                                    days: Array.from(days),
+                                                                };
+                                                                setSchedules(next);
+                                                            }}
+                                                        >
+                                                            {day}
+                                                        </DropdownMenuCheckboxItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
 
-                                        <div className="flex gap-2 items-center">
-                                            <Input type="time" value={sch.start_time} onChange={(e) => {
-                                                const next = [...schedules];
-                                                next[idx] = { ...next[idx], start_time: e.target.value };
-                                                setSchedules(next);
-                                            }} className="w-32" placeholder="Start" />
-                                            <Input type="time" value={sch.end_time} onChange={(e) => {
-                                                const next = [...schedules];
-                                                next[idx] = { ...next[idx], end_time: e.target.value };
-                                                setSchedules(next);
-                                            }} className="w-32" placeholder="End" />
+                                            <Input
+                                                type="time"
+                                                value={sch.start_time}
+                                                onChange={(e) => {
+                                                    const next = [...schedules];
+                                                    next[idx] = { ...next[idx], start_time: e.target.value };
+                                                    setSchedules(next);
+                                                }}
+                                                className="w-full sm:w-40"
+                                                placeholder="Start"
+                                            />
+                                            <Input
+                                                type="time"
+                                                value={sch.end_time}
+                                                onChange={(e) => {
+                                                    const next = [...schedules];
+                                                    next[idx] = { ...next[idx], end_time: e.target.value };
+                                                    setSchedules(next);
+                                                }}
+                                                className="w-full sm:w-40"
+                                                placeholder="End"
+                                            />
                                             <Button
                                                 type="button"
-                                                variant="outline"
-                                                className="w-32"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="shrink-0"
+                                                aria-label="Remove schedule"
                                                 onClick={() => {
                                                     const next = schedules.filter((_, i) => i !== idx);
-                                                    setSchedules(next.length ? next : [{ days: [], start_time: '', end_time: '' }]);
+                                                    setSchedules(
+                                                        next.length
+                                                            ? next
+                                                            : [{ days: [], start_time: '', end_time: '' }],
+                                                    );
                                                 }}
                                             >
-                                                Remove
+                                                <X className="h-4 w-4" />
                                             </Button>
                                         </div>
                                     </div>
@@ -441,198 +571,199 @@ export default function TutorialCreate() {
                                     </Button>
                                 </div>
                             </div>
-                        </div>
+                        </fieldset>
 
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">Education Level</label>
-                                <select
-                                    value={educationLevel}
-                                    onChange={(e) => setEducationLevel(e.target.value as 'JHS' | 'SHS' | 'Elementary' | '')}
-                                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="">Select education level</option>
-                                    <option value="Elementary">Elementary</option>
-                                    <option value="JHS">Junior High School</option>
-                                    <option value="SHS">Senior High School</option>
-                                </select>
-                                {(errors as any).education_level ? (
-                                    <div className="mt-1 text-sm text-destructive">{(errors as any).education_level}</div>
-                                ) : null}
-                            </div>
+                        <fieldset>
+                            <legend className="text-base font-semibold leading-7">Package & Billing</legend>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                Select a package to auto-fill level, fees, and (if applicable) prepaid hours.
+                            </p>
 
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">Grade Level</label>
-                                <Input value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)} placeholder={educationLevel === 'Elementary' ? '1-6' : educationLevel === 'JHS' ? '7-10' : educationLevel === 'SHS' ? '11-12' : ''} />
-                                {(errors as any).grade_level ? (
-                                    <div className="mt-1 text-sm text-destructive">{(errors as any).grade_level}</div>
-                                ) : null}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">Rate (₱/hour)</label>
-                                <Input value={computedRate !== null ? String(computedRate) : ''} readOnly placeholder="Auto" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm text-muted-foreground mb-1">Billing Type</label>
-                                <select
-                                    value={billingType}
-                                    onChange={(e) => setBillingType(e.target.value as 'per-session' | 'prepaid-package')}
-                                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="per-session">Per-Session</option>
-                                    <option value="prepaid-package">Prepaid Package</option>
-                                </select>
-                            </div>
-
-                            {billingType === 'prepaid-package' && (
-                                <div>
-                                    <label className="block text-sm text-muted-foreground mb-1">Prepaid Amount (₱)</label>
-                                    <Input 
-                                        type="number" 
-                                        value={prepaidAmount} 
-                                        onChange={(e) => setPrepaidAmount(e.target.value)} 
-                                        placeholder="Enter total amount paid"
-                                        step="0.01"
-                                        min="0"
-                                    />
-                                    {(errors as any).prepaid_amount ? (
-                                        <div className="mt-1 text-sm text-destructive">{(errors as any).prepaid_amount}</div>
-                                    ) : null}
+                            <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                                <div className="sm:col-span-2">
+                                    <Label className="block text-sm font-medium leading-6">Package</Label>
+                                    <select
+                                        value={selectedPackageId === '' ? '' : String(selectedPackageId)}
+                                        onChange={(e) => {
+                                            const raw = e.target.value;
+                                            setSelectedPackageId(raw ? Number(raw) : '');
+                                        }}
+                                        className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    >
+                                        <option value="">Select a package</option>
+                                        {packages.map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name}{p.type ? ` (${p.type})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <InputError message={(errors as any).packageid} />
                                 </div>
-                            )}
-                        </div>
 
-                         <div>
-                            <label className="block text-sm text-muted-foreground mb-1">Tutor</label>
-                            <div className="relative">
-                                <Input
-                                    value={tutorQuery}
-                                    placeholder="Search tutor"
-                                    onChange={(e) => {
-                                        const val = (e.target as HTMLInputElement).value;
-                                        setTutorQuery(val);
-                                        setTutorOpen(true);
+                                <div>
+                                    <Label className="block text-sm font-medium leading-6">Level</Label>
+                                    <Input className="mt-2" value={level} readOnly placeholder="Auto" />
+                                </div>
 
-                                        const found = (tutors as any[]).find((t: any) => {
-                                            const name = `${t.firstname ?? ''} ${t.lastname ?? ''}`.trim();
-                                            return name === val || String(t.tutorid ?? '') === val || String(t.id ?? '') === val;
-                                        });
-                                        setSelectedTutor(found ? found.id : null);
-                                    }}
-                                    onFocus={() => setTutorOpen(true)}
-                                    onBlur={() => {
-                                        // allow click selection before closing
-                                        setTimeout(() => setTutorOpen(false), 150);
-                                    }}
-                                />
+                                <div>
+                                    <Label className="block text-sm font-medium leading-6">Tutee Fee (₱)</Label>
+                                    <Input className="mt-2" value={tuteeFeeAmount} readOnly placeholder="Auto" />
+                                </div>
 
-                                {tutorOpen && (
-                                    <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
-                                        <div className="max-h-64 overflow-auto p-1">
-                                            {tutorSuggestions.length === 0 ? (
-                                                <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
-                                            ) : (
-                                                tutorSuggestions.map((t: any) => {
-                                                    const name = `${t.firstname ?? ''} ${t.lastname ?? ''}`.trim();
-                                                    const rightId = t.tutorid ?? t.id;
-                                                    return (
-                                                        <button
-                                                            key={t.id}
-                                                            type="button"
-                                                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-                                                            onMouseDown={(e) => e.preventDefault()}
-                                                            onClick={() => {
-                                                                setTutorQuery(name);
-                                                                setSelectedTutor(t.id);
-                                                                setTutorOpen(false);
-                                                            }}
-                                                        >
-                                                            <div className="flex items-center justify-between gap-3">
-                                                                <span className="truncate font-medium">{name}</span>
-                                                                <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })
-                                            )}
+                                <div>
+                                    <Label className="block text-sm font-medium leading-6">Tutor Fee (₱)</Label>
+                                    <Input className="mt-2" value={tutorFeeAmount} readOnly placeholder="Auto" />
+                                </div>
+
+                                {(packageMode === 'prepaid' || packageMode === 'promotional') && (
+                                    <>
+                                        <div>
+                                            <Label className="block text-sm font-medium leading-6">
+                                                {packageMode === 'promotional' ? 'Number of Hours' : 'Prepaid Hours'}
+                                            </Label>
+                                            <Input className="mt-2" value={prepaidHours} readOnly placeholder="Auto" />
                                         </div>
+
+                                        <div>
+                                            <Label className="block text-sm font-medium leading-6">Prepaid Amount (₱)</Label>
+                                            <Input
+                                                className="mt-2"
+                                                type="number"
+                                                value={prepaidAmount}
+                                                onChange={(e) => setPrepaidAmount(e.target.value)}
+                                                placeholder="Enter total amount paid"
+                                                step="0.01"
+                                                min="0"
+                                            />
+                                            <InputError message={(errors as any).prepaid_amount} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend className="text-base font-semibold leading-7">Tutor</legend>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                Choose a tutor. Availability is checked against existing schedules.
+                            </p>
+
+                            <div className="mt-6">
+                                <Label className="block text-sm font-medium leading-6">Tutor</Label>
+                                <div className="relative mt-2">
+                                    <Input
+                                        value={tutorQuery}
+                                        placeholder="Search tutor"
+                                        onChange={(e) => {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            setTutorQuery(val);
+                                            setTutorOpen(true);
+
+                                            const found = (tutors as any[]).find((t: any) => {
+                                                const name = `${t.firstname ?? ''} ${t.lastname ?? ''}`.trim();
+                                                return (
+                                                    name === val ||
+                                                    String(t.tutorid ?? '') === val ||
+                                                    String(t.id ?? '') === val
+                                                );
+                                            });
+                                            setSelectedTutor(found ? found.id : null);
+                                        }}
+                                        onFocus={() => setTutorOpen(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setTutorOpen(false), 150);
+                                        }}
+                                    />
+
+                                    {tutorOpen && (
+                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+                                            <div className="max-h-64 overflow-auto p-1">
+                                                {tutorSuggestions.length === 0 ? (
+                                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                                        No matches
+                                                    </div>
+                                                ) : (
+                                                    tutorSuggestions.map((t: any) => {
+                                                        const name = `${t.firstname ?? ''} ${t.lastname ?? ''}`.trim();
+                                                        const rightId = t.tutorid ?? t.id;
+                                                        return (
+                                                            <button
+                                                                key={t.id}
+                                                                type="button"
+                                                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => {
+                                                                    setTutorQuery(name);
+                                                                    setSelectedTutor(t.id);
+                                                                    setTutorOpen(false);
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span className="truncate font-medium">
+                                                                        {name}
+                                                                    </span>
+                                                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                                                        {rightId ?? ''}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <InputError message={errors.tutorid} />
+
+                                {!errors.tutorid && selectedTutor && availability.get(selectedTutor)?.available === false ? (
+                                    <div className="mt-4 space-y-3">
+                                        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+                                            <div className="text-sm font-medium text-destructive">Schedule Conflict</div>
+                                            <div className="mt-1 text-sm text-destructive">
+                                                {availability.get(selectedTutor)?.conflict}
+                                            </div>
+                                        </div>
+                                        <label className="flex cursor-pointer items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={overrideAvailability}
+                                                onChange={(e) => setOverrideAvailability(e.target.checked)}
+                                                className="h-4 w-4 accent-primary"
+                                            />
+                                            <span className="text-sm font-medium text-foreground">
+                                                Override availability restriction (Special case: tutor absence)
+                                            </span>
+                                        </label>
+                                    </div>
+                                ) : null}
+
+                                {!cleanedSchedules.length || !startDate ? null : availableTutorSuggestions.length ? (
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        Suggested: {availableTutorSuggestions[0]?.firstname}{' '}
+                                        {availableTutorSuggestions[0]?.lastname}
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 text-xs text-destructive">
+                                        No available tutor matches the selected schedule.
                                     </div>
                                 )}
                             </div>
+                        </fieldset>
 
-                            {errors.tutorid ? (
-                                <div className="mt-1 text-sm text-destructive">{errors.tutorid}</div>
-                            ) : null}
-
-                            {!errors.tutorid && selectedTutor && availability.get(selectedTutor)?.available === false ? (
-                                <div className="mt-4 space-y-3">
-                                    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
-                                        <div className="text-sm font-medium text-destructive">
-                                            Schedule Conflict
-                                        </div>
-                                        <div className="mt-1 text-sm text-destructive">{availability.get(selectedTutor)?.conflict}</div>
-                                    </div>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={overrideAvailability}
-                                            onChange={(e) => setOverrideAvailability(e.target.checked)}
-                                            className="h-4 w-4 accent-primary"
-                                        />
-                                        <span className="text-sm text-foreground font-medium">
-                                            Override availability restriction (Special case: tutor absence)
-                                        </span>
-                                    </label>
-                                </div>
-                            ) : null}
-
-                            {!cleanedSchedules.length || !startDate ? null : availableTutorSuggestions.length ? (
-                                <div className="mt-1 text-xs text-muted-foreground">Suggested: {availableTutorSuggestions[0]?.firstname} {availableTutorSuggestions[0]?.lastname}</div>
-                            ) : (
-                                <div className="mt-1 text-xs text-destructive">No available tutor matches the selected schedule.</div>
-                            )}
-
-                            </div>
-
-                            <div className="flex justify-end gap-2">
-                                <Link href={tutorials().url} className="btn w-32">Cancel</Link>
-                                <Button onClick={() => {
-                                if (!selectedTutor) return;
-
-                                const postStudentId = student ? student.id : selectedStudent;
-
-                                router.post('/tutorials', {
-                                    studentid: postStudentId,
-                                    tutorid: selectedTutor,
-                                    education_level: educationLevel || null,
-                                    grade_level: gradeLevel || null,
-                                    start_date: startDate || null,
-                                    end_date: endDate || null,
-                                    schedules: cleanedSchedules,
-                                    billing_type: billingType,
-                                    prepaid_amount: billingType === 'prepaid-package' ? (prepaidAmount ? parseFloat(prepaidAmount) : null) : null,
-                                    override_availability: overrideAvailability,
-                                }, {
-                                    onSuccess: () => {
-                                        // navigate back to student page if available
-                                        if (student) {
-                                            router.visit(`/students/${student.encrypted_id}`);
-                                        } else {
-                                            router.visit('/tutorials');
-                                        }
-                                    }
-                                });
-
-                                }} className="btn btn-primary">Create</Button>
-                            </div>
+                        <div className="flex items-center justify-end gap-x-6 border-t border-border pt-8">
+                            <Link
+                                href={tutorials().url}
+                                className="text-sm font-semibold leading-6 text-muted-foreground hover:text-foreground"
+                            >
+                                Cancel
+                            </Link>
+                            <Button type="submit">Create</Button>
                         </div>
-                    </div>
+                    </form>
 
-                    <div className="md:col-span-1">
+                    <div className="lg:col-span-1">
                         <div className="rounded-md border bg-background p-4">
                             <div className="mb-2 text-sm font-medium">Available tutors</div>
 
@@ -651,7 +782,10 @@ export default function TutorialCreate() {
                                             <button
                                                 key={t.id}
                                                 type="button"
-                                                className={`w-full rounded-md border px-2 py-2 text-left text-sm hover:bg-accent ${isSelected ? 'bg-accent' : ''}`}
+                                                className={
+                                                    `w-full rounded-md border px-2 py-2 text-left text-sm hover:bg-accent ` +
+                                                    (isSelected ? 'bg-accent' : '')
+                                                }
                                                 onClick={() => {
                                                     setSelectedTutor(t.id);
                                                     setTutorQuery(name);
@@ -659,19 +793,23 @@ export default function TutorialCreate() {
                                             >
                                                 <div className="flex items-center justify-between gap-3">
                                                     <span className="truncate font-medium">{name}</span>
-                                                    <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
+                                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                                        {rightId ?? ''}
+                                                    </span>
                                                 </div>
                                             </button>
                                         );
                                     })}
                                 </div>
                             ) : (
-                                <div className="text-sm text-destructive">No available tutor matches the selected schedule.</div>
+                                <div className="text-sm text-destructive">
+                                    No available tutor matches the selected schedule.
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
             </div>
         </AppLayout>
-    )
+    );
 }
