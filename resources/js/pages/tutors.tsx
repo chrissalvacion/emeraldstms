@@ -97,7 +97,11 @@ export default function Tutors() {
                         />
                     </div>
 
+<<<<<<< HEAD
                     <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+=======
+                    <div className="flex items-center gap-2">
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                         <Button variant="outline" onClick={() => setUploadOpen(true)}>
                             <Upload className="mr-2 h-4 w-4" /> Bulk Upload
                         </Button>

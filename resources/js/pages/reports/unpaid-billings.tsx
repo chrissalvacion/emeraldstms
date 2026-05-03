@@ -214,6 +214,7 @@ export default function UnpaidBillingsReport({ billings }: UnpaidBillingsProps) 
                                                 </div>
                                             </td>
                                         </tr>
+<<<<<<< HEAD
                                     ))
                                 )}
                             </tbody>
@@ -221,6 +222,79 @@ export default function UnpaidBillingsReport({ billings }: UnpaidBillingsProps) 
                     </div>
                 </div>
 
+=======
+                                    ) : (
+                                        filteredBillings.map((billing) => (
+                                            <tr key={billing.id} className="border-b hover:bg-muted/50 transition-colors">
+                                                <td className="py-3">
+                                                    <Link
+                                                        href={`/billings/${billing.encrypted_id ?? billing.id}`}
+                                                        className="font-medium text-primary hover:underline"
+                                                    >
+                                                        {billing.billingid}
+                                                    </Link>
+                                                </td>
+                                                <td className="py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="h-4 w-4 text-muted-foreground" />
+                                                        <span>{billing.student_name || billing.studentid}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="text-sm">
+                                                            {formatDate(billing.billing_startdate)} - {formatDate(billing.billing_enddate)}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Clock className="h-4 w-4 text-muted-foreground" />
+                                                        <span>{billing.total_hours.toFixed(2)}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 text-right font-medium">
+                                                    {formatAmount(billing.amount)}
+                                                </td>
+                                                <td className="py-3 text-right text-green-600 font-medium">
+                                                    {formatAmount(billing.total_paid)}
+                                                </td>
+                                                <td className="py-3 text-right text-red-600 font-bold">
+                                                    {formatAmount(billing.balance)}
+                                                </td>
+                                                <td className="py-3">
+                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                                        billing.status === 'unpaid' 
+                                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                    }`}>
+                                                        {billing.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3">
+                                                    <div className="flex gap-2">
+                                                        <Link href={`/billings/${billing.encrypted_id ?? billing.id}`}>
+                                                            <Button variant="outline" size="sm">
+                                                                View
+                                                            </Button>
+                                                        </Link>
+                                                        <Link href={`/payments/create?billingid=${encodeURIComponent(billing.billingid)}`}>
+                                                            <Button size="sm">
+                                                                Add Payment
+                                                            </Button>
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
             </div>
         </AppLayout>
     );

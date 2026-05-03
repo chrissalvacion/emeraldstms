@@ -172,7 +172,40 @@ class ReportsController extends Controller
      */
     public function unpaidBillings()
     {
+<<<<<<< HEAD
         $billings = $this->buildUnpaidBillingRows();
+=======
+        $billings = Billing::where('status', '!=', 'paid')
+            ->orderBy('billing_startdate', 'desc')
+            ->get()
+            ->map(function ($billing) {
+                $totalPaid = Payments::where('billingid', $billing->billingid)->sum('amount');
+                $balance = (float)$billing->amount - $totalPaid;
+                
+                $student = null;
+                if (is_numeric($billing->studentid)) {
+                    $student = Students::find($billing->studentid);
+                } else {
+                    $student = Students::where('tuteeid', $billing->studentid)->first();
+                }
+                $studentName = $student ? trim(($student->firstname ?? '') . ' ' . ($student->lastname ?? '')) : null;
+
+                return [
+                    'id' => $billing->id,
+                    'encrypted_id' => $billing->encrypted_id,
+                    'billingid' => $billing->billingid,
+                    'studentid' => $billing->studentid,
+                    'student_name' => $studentName,
+                    'billing_startdate' => $billing->billing_startdate,
+                    'billing_enddate' => $billing->billing_enddate,
+                    'total_hours' => $billing->total_hours,
+                    'amount' => $billing->amount,
+                    'total_paid' => $totalPaid,
+                    'balance' => $balance,
+                    'status' => $billing->status,
+                ];
+            });
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
         return Inertia::render('reports/unpaid-billings', [
             'billings' => $billings,

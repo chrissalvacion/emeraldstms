@@ -7,7 +7,10 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Validator;
+<<<<<<< HEAD
 use Illuminate\Support\Facades\Schema;
+=======
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
@@ -133,7 +136,11 @@ class TutorsController extends Controller
                 'lastname'       => 'required|string|max:255',
                 'date_of_birth'  => 'nullable|date',
                 'address'        => 'nullable|string|max:255',
+<<<<<<< HEAD
                 'email'          => 'nullable|email|max:255|unique:tutors,email',
+=======
+                'email'          => 'required|email|max:255|unique:tutors,email',
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                 'phone'          => 'nullable|string|max:255',
                 'license_number' => 'nullable|string|max:255',
                 'hire_date'      => 'nullable|date',

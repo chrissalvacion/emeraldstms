@@ -162,6 +162,7 @@ class BillingController extends Controller
      */
     public function index()
     {
+<<<<<<< HEAD
         if (!Schema::hasTable('billings') || !Schema::hasTable('payments')) {
             return Inertia::render('billing', [
                 'billings' => [],
@@ -185,6 +186,12 @@ class BillingController extends Controller
             }
 
             $tutorialIds = $this->extractTutorialIdsFromAttendance($b->attendance_record);
+=======
+        $billings = Billing::orderBy('id', 'desc')->get()->map(function ($b) {
+            $totalPaid = (float) Payments::where('billingid', (string) $b->billingid)->sum('amount');
+            $amount = (float) ($b->amount ?? 0);
+            $balance = round($amount - $totalPaid, 2);
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
             return [
                 'id' => $b->id,
@@ -197,9 +204,15 @@ class BillingController extends Controller
                 'billing_enddate' => $b->billing_enddate ?: null,
                 'total_hours' => $b->total_hours,
                 'amount' => $b->amount,
+<<<<<<< HEAD
                 'total_paid' => $totalPaid,
                 'balance' => $balance,
                 'status' => $finalStatus,
+=======
+                'total_paid' => round($totalPaid, 2),
+                'balance' => $balance,
+                'status' => $b->status,
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                 'created_at' => $b->created_at,
             ];
         });
@@ -757,7 +770,7 @@ class BillingController extends Controller
         $path = 'billing_pdfs/' . $fileName;
 
         try {
-            Storage::disk('public')->put($path, $pdf->output());
+            Storage::disk(config('filesystems.billing_disk'))->put($path, $pdf->output());
         } catch (\Throwable $e) {
             // Saving is best-effort; still stream the PDF.
         }

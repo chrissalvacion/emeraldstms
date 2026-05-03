@@ -313,17 +313,33 @@ export default function BillingIndex() {
 									<thead>
 										<tr className="border-b text-left text-sm text-muted-foreground">
 											<th className="px-3 py-2 w-[180px]">Billing ID</th>
+<<<<<<< HEAD
 											<th className="px-3 py-2 w-[200px]">Tutee Name</th>
 											<th className="px-3 py-2 w-[200px]">Tutorial ID</th>
 											<th className="px-3 py-2 w-[220px]">Billing Date</th>
 											{/* <th className="px-3 py-2 w-[120px]">Status</th> */}
 											<th className="px-3 py-2 w-[80px] text-right">Actions</th>
+=======
+											<th className="px-3 py-2 w-[220px]">Student</th>
+											<th className="px-3 py-2 w-[140px]">Start</th>
+											<th className="px-3 py-2 w-[140px]">End</th>
+											<th className="px-3 py-2 w-[120px]">Hours</th>
+											<th className="px-3 py-2 w-[120px]">Amount</th>
+											<th className="px-3 py-2 w-[120px]">Paid</th>
+											<th className="px-3 py-2 w-[120px]">Balance</th>
+											<th className="px-3 py-2 w-[120px]">Status</th>
+											<th className="px-3 py-2 w-[120px]">Actions</th>
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 										</tr>
 									</thead>
 									<tbody>
 										{list.length === 0 && (
 											<tr>
+<<<<<<< HEAD
 												<td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">
+=======
+												<td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 													No billings found.
 												</td>
 											</tr>
@@ -339,10 +355,21 @@ export default function BillingIndex() {
 														</Link>
 													</td>
 													<td className="px-3 py-2 break-words">{b.student_name ?? b.studentid ?? '-'}</td>
+<<<<<<< HEAD
 													<td className="px-3 py-2 break-words">{b.tutorial_ids || '-'}</td>
 													<td className="px-3 py-2">{formatBillingDate(b.billing_startdate, b.billing_enddate)}</td>
 													{/* <td className="px-3 py-2">{getActualBillingStatus(b)}</td> */}
 													<td className="px-3 py-2 text-right">
+=======
+													<td className="px-3 py-2">{formatDate(b.billing_startdate)}</td>
+													<td className="px-3 py-2">{formatDate(b.billing_enddate)}</td>
+													<td className="px-3 py-2">{b.total_hours ?? '-'}</td>
+													<td className="px-3 py-2">{formatAmount(b.amount)}</td>
+													<td className="px-3 py-2">{formatAmount(b.total_paid)}</td>
+													<td className="px-3 py-2">{formatAmount(b.balance)}</td>
+													<td className="px-3 py-2">{(b.status ?? '').toLowerCase()}</td>
+													<td className="px-3 py-2">
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 														<DropdownMenu>
 															<DropdownMenuTrigger asChild>
 																<Button variant="ghost" size="icon" className="h-7 w-7">

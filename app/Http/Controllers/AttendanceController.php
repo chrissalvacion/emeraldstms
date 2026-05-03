@@ -400,6 +400,7 @@ class AttendanceController extends Controller
             'tutorid' => 'required',
             'studentid' => 'required',
             'tutorialid' => 'nullable|string',
+<<<<<<< HEAD
             'date' => 'nullable|date_format:Y-m-d',
             'time_in' => ['nullable', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
             'time_out' => ['nullable', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
@@ -434,6 +435,34 @@ class AttendanceController extends Controller
                     'time_out' => 'Invalid time format.',
                 ]);
             }
+=======
+            'date' => 'required|date_format:Y-m-d',
+            'time_in' => ['required', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
+            'time_out' => ['required', 'regex:/^(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|(?:0?[1-9]|1[0-2]):[0-5]\d\s*[APap][Mm])$/'],
+        ]);
+
+        $date = Carbon::createFromFormat('Y-m-d', (string) $validated['date'], $this->localTimezone())->toDateString();
+        $timeIn = $this->normalizeTimeValue((string) $validated['time_in']);
+        $timeOut = $this->normalizeTimeValue((string) $validated['time_out']);
+
+        if ($timeIn === null || $timeOut === null) {
+            throw ValidationException::withMessages([
+                'time_in' => 'Invalid time format.',
+            ]);
+        }
+
+        $timeInMinutes = $this->timeStringToMinutes($timeIn);
+        $timeOutMinutes = $this->timeStringToMinutes($timeOut);
+        if ($timeInMinutes === null || $timeOutMinutes === null) {
+            throw ValidationException::withMessages([
+                'time_in' => 'Invalid time values.',
+            ]);
+        }
+        if ($timeOutMinutes < $timeInMinutes) {
+            throw ValidationException::withMessages([
+                'time_out' => 'Time out cannot be earlier than time in.',
+            ]);
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
         }
 
         $tutorInput = $validated['tutorid'];
@@ -501,11 +530,16 @@ class AttendanceController extends Controller
             }
         }
 
+<<<<<<< HEAD
         $existing = Attendance::query()
+=======
+        $alreadyExists = Attendance::query()
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
             ->where('tutorid', (string) $tutorial->tutorid)
             ->where('studentid', (string) $tutorial->studentid)
             ->where('tutorialid', (string) $tutorial->tutorialid)
             ->where('date', (string) $date)
+<<<<<<< HEAD
             ->where('time_in', $timeIn)
             ->where('time_out', $timeOut)
             ->orderByDesc('id')
@@ -517,6 +551,13 @@ class AttendanceController extends Controller
                 $existing->update(['remarks' => $remarks]);
             }
 
+=======
+            ->where('time_in', (string) $timeIn)
+            ->where('time_out', (string) $timeOut)
+            ->exists();
+
+        if ($alreadyExists) {
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
             $request->session()->put('attendance_manual_submission', [
                 'fingerprint' => $recordFingerprint,
                 'submitted_at' => time(),
@@ -532,11 +573,16 @@ class AttendanceController extends Controller
             'date' => $date,
             'time_in' => $timeIn,
             'time_out' => $timeOut,
+<<<<<<< HEAD
             'remarks' => $remarks,
         ]);
 
         $tutorial->syncHourCountersFromAttendance();
 
+=======
+        ]);
+
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
         $request->session()->put('attendance_manual_submission', [
             'fingerprint' => $recordFingerprint,
             'submitted_at' => time(),
@@ -559,7 +605,10 @@ class AttendanceController extends Controller
             'date' => 'required|date_format:Y-m-d',
             'time_in' => ['nullable', 'regex:/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/'],
             'time_out' => ['nullable', 'regex:/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/'],
+<<<<<<< HEAD
             'remarks' => 'nullable|string|max:255',
+=======
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
             'password' => 'required|string|current_password',
         ]);
 
@@ -580,6 +629,7 @@ class AttendanceController extends Controller
             'date' => (string) $validated['date'],
             'time_in' => $this->normalizeTimeValue((string) ($timeIn ?? '')),
             'time_out' => $this->normalizeTimeValue((string) ($timeOut ?? '')),
+<<<<<<< HEAD
             'remarks' => isset($validated['remarks']) && $validated['remarks'] !== '' ? (string) $validated['remarks'] : null,
         ]);
 
@@ -590,6 +640,10 @@ class AttendanceController extends Controller
             $tutorial->syncHourCountersFromAttendance();
         }
 
+=======
+        ]);
+
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
         return back()->with('success', 'Attendance log updated successfully');
     }
 
@@ -602,6 +656,7 @@ class AttendanceController extends Controller
             'password' => 'required|string|current_password',
         ]);
 
+<<<<<<< HEAD
         $tutorialId = (string) ($attendance->tutorialid ?? '');
         $attendance->delete();
 
@@ -612,6 +667,10 @@ class AttendanceController extends Controller
             }
         }
 
+=======
+        $attendance->delete();
+
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
         return back()->with('success', 'Attendance log deleted successfully');
     }
 

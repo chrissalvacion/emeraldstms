@@ -219,7 +219,10 @@ export default function AttendanceClock() {
     const [selectedTutorialId, setSelectedTutorialId] = useState('');
     const [tutorialQuery, setTutorialQuery] = useState('');
     const [tutorialOpen, setTutorialOpen] = useState(false);
+<<<<<<< HEAD
     const [remarks, setRemarks] = useState('');
+=======
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
     const tutorOptions = useMemo(() => {
         return tutors.map((t) => {
@@ -331,11 +334,15 @@ export default function AttendanceClock() {
     }, [studentOptions, studentQuery, tutorStudentIds]);
 
     const matchingTutorials = useMemo(() => {
+<<<<<<< HEAD
         if (!resolvedTutor || !resolvedStudent) return [] as Tutorial[];
 
         const dateForMatch = /^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)
             ? attendanceDate
             : getTodayYmd(new Date(), appTimezone);
+=======
+        if (!resolvedTutor || !resolvedStudent || !attendanceDate) return [] as Tutorial[];
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
         const studentKeys = new Set<string>([
             String(resolvedStudent.id),
@@ -353,7 +360,11 @@ export default function AttendanceClock() {
 
                 return studentKeys.has(studentId) || studentKeys.has(studentRef) || studentKeys.has(studentTuteeid);
             })
+<<<<<<< HEAD
             .filter((tr) => isDateWithinRange(tr.start_date, tr.end_date, dateForMatch));
+=======
+            .filter((tr) => isDateWithinRange(tr.start_date, tr.end_date, attendanceDate));
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
         filtered.sort((a, b) => {
             const statusDiff = tutorialStatusRank(a.status) - tutorialStatusRank(b.status);
@@ -362,7 +373,11 @@ export default function AttendanceClock() {
         });
 
         return filtered;
+<<<<<<< HEAD
     }, [appTimezone, attendanceDate, resolvedStudent, resolvedTutor]);
+=======
+    }, [attendanceDate, resolvedStudent, resolvedTutor]);
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
     const autoTutorial = useMemo(() => {
         return matchingTutorials.length > 0 ? matchingTutorials[0] : null;
@@ -454,15 +469,29 @@ export default function AttendanceClock() {
         setSelectedTutorialId('');
         setTutorialQuery('');
         resetManualTimeFields();
+<<<<<<< HEAD
         setRemarks('');
     };
 
     const canSubmitManual = Boolean(resolvedTutor && resolvedStudent && matchingTutorials.length > 0);
+=======
+    };
+
+    const canSubmitManual = Boolean(
+        resolvedTutor &&
+            resolvedStudent &&
+            selectedTutorialId &&
+            /^\d{4}-\d{2}-\d{2}$/.test(attendanceDate) &&
+            /^\d{2}:\d{2}$/.test(timeIn) &&
+            /^\d{2}:\d{2}$/.test(timeOut),
+    );
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
 
     const submitManualAttendance = () => {
         if (isSubmitting || !canSubmitManual) return;
 
         setIsSubmitting(true);
+<<<<<<< HEAD
 
         const resolvedTutorialId = selectedTutorialId || String(autoTutorial?.tutorialid ?? '');
 
@@ -483,6 +512,18 @@ export default function AttendanceClock() {
         router.post(
             '/attendance/record-manual',
             payload,
+=======
+        router.post(
+            '/attendance/record-manual',
+            {
+                tutorid: String(resolvedTutor?.id ?? ''),
+                studentid: String(resolvedStudent?.id ?? ''),
+                tutorialid: selectedTutorialId,
+                date: attendanceDate,
+                time_in: timeIn,
+                time_out: timeOut,
+            },
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
             {
                 onSuccess: () => {
                     setConfirmTitle('Attendance recorded');
@@ -508,6 +549,7 @@ export default function AttendanceClock() {
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
                     </Link>
+<<<<<<< HEAD
                     <div>
                         <h1 className="text-2xl font-semibold">Record Attendance</h1>
                         <p className="text-sm text-muted-foreground">Manual attendance entry for matched tutorial sessions.</p>
@@ -542,41 +584,235 @@ export default function AttendanceClock() {
                                         setTimeout(() => setTutorOpen(false), 150);
                                     }}
                                 />
+=======
+                    <h1 className="text-2xl font-semibold">Record Attendance</h1>
+                </div>
 
-                                {tutorOpen && (
-                                    <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
-                                        <div className="max-h-64 overflow-auto p-1">
-                                            {tutorSuggestions.length === 0 ? (
-                                                <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
-                                            ) : (
-                                                tutorSuggestions.map((t: any) => {
-                                                    const rightId = t.tutorid ?? t.id;
-                                                    return (
+                <div className="max-w-3xl rounded-md border bg-background p-4">
+                        <h2 className="text-base font-semibold">Manual Attendance Entry</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">Use pickers for date/time integrity. Time In/Out auto-matches scheduled start/end and stays editable.</p>
+
+                        <div className="mt-4 grid gap-4">
+                            <div>
+                                <label className="mb-1 block text-sm text-muted-foreground">Tutor</label>
+                                <div className="relative">
+                                    <Input
+                                        placeholder="Search tutor"
+                                        value={tutorQuery}
+                                        onChange={(e) => {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            setTutorQuery(val);
+                                            setTutorOpen(true);
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
+
+                                            const found = resolveTutorFromInput(val);
+                                            setSelectedTutorId(found ? found.id : null);
+                                        }}
+                                        onFocus={() => setTutorOpen(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setTutorOpen(false), 150);
+                                        }}
+                                    />
+
+                                    {tutorOpen && (
+                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+                                            <div className="max-h-64 overflow-auto p-1">
+                                                {tutorSuggestions.length === 0 ? (
+                                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+                                                ) : (
+                                                    tutorSuggestions.map((t: any) => {
+                                                        const rightId = t.tutorid ?? t.id;
+                                                        return (
+                                                            <button
+                                                                key={t.id}
+                                                                type="button"
+                                                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => {
+                                                                    setTutorQuery(t.name);
+                                                                    setSelectedTutorId(t.id);
+                                                                    setTutorOpen(false);
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span className="truncate font-medium">{t.name}</span>
+                                                                    <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                {errors.tutorid && <div className="mt-1 text-sm text-destructive">{errors.tutorid}</div>}
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm text-muted-foreground">Student</label>
+                                <div className="relative">
+                                    <Input
+                                        placeholder="Search student"
+                                        value={studentQuery}
+                                        onChange={(e) => {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            setStudentQuery(val);
+                                            setStudentOpen(true);
+
+                                            const found = resolveStudentFromInput(val);
+                                            setSelectedStudentId(found ? found.id : null);
+                                        }}
+                                        onFocus={() => setStudentOpen(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setStudentOpen(false), 150);
+                                        }}
+                                    />
+
+                                    {studentOpen && (
+                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+                                            <div className="max-h-64 overflow-auto p-1">
+                                                {studentSuggestions.length === 0 ? (
+                                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+                                                ) : (
+                                                    studentSuggestions.map((s: any) => {
+                                                        const rightId = s.tuteeid ?? s.id;
+                                                        return (
+                                                            <button
+                                                                key={s.id}
+                                                                type="button"
+                                                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => {
+                                                                    setStudentQuery(s.name);
+                                                                    setSelectedStudentId(s.id);
+                                                                    setStudentOpen(false);
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span className="truncate font-medium">{s.name}</span>
+                                                                    <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                {errors.studentid && <div className="mt-1 text-sm text-destructive">{errors.studentid}</div>}
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm text-muted-foreground">Tutorial Session</label>
+                                <div className="relative">
+                                    <Input
+                                        placeholder="Search tutorial session"
+                                        value={tutorialQuery}
+                                        onChange={(e) => {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            setTutorialQuery(val);
+                                            setTutorialOpen(true);
+
+                                            const found = tutorialOptions.find((tr) => tr.label === val || tr.tutorialid === val);
+                                            setSelectedTutorialId(found ? String(found.tutorialid) : '');
+                                        }}
+                                        onFocus={() => setTutorialOpen(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setTutorialOpen(false), 150);
+                                        }}
+                                    />
+
+                                    {tutorialOpen && (
+                                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+                                            <div className="max-h-64 overflow-auto p-1">
+                                                {tutorialSuggestions.length === 0 ? (
+                                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+                                                ) : (
+                                                    tutorialSuggestions.map((tr: any) => (
                                                         <button
-                                                            key={t.id}
+                                                            key={tr.id}
                                                             type="button"
                                                             className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
                                                             onMouseDown={(e) => e.preventDefault()}
                                                             onClick={() => {
-                                                                setTutorQuery(t.name);
-                                                                setSelectedTutorId(t.id);
-                                                                setTutorOpen(false);
+                                                                setSelectedTutorialId(String(tr.tutorialid));
+                                                                setTutorialQuery(tr.label);
+                                                                setTutorialOpen(false);
                                                             }}
                                                         >
-                                                            <div className="flex items-center justify-between gap-3">
-                                                                <span className="truncate font-medium">{t.name}</span>
-                                                                <span className="shrink-0 text-xs text-muted-foreground">{rightId ?? ''}</span>
-                                                            </div>
+                                                            <div className="truncate font-medium">{tr.label}</div>
                                                         </button>
-                                                    );
-                                                })
-                                            )}
+                                                    ))
+                                                )}
+                                            </div>
                                         </div>
+                                    )}
+                                </div>
+                                {autoTutorial && (
+                                    <div className="mt-1 text-sm text-muted-foreground">
+                                        Auto-matched: {autoTutorial.tutorialid} {autoTutorial.student_name ? `- ${autoTutorial.student_name}` : ''}
                                     </div>
                                 )}
+                                {!autoTutorial && resolvedTutor && resolvedStudent && (
+                                    <div className="mt-1 text-sm text-muted-foreground">No active tutorial found for the selected date. You can change tutor, student, or date.</div>
+                                )}
+                                {errors.tutorialid && <div className="mt-1 text-sm text-destructive">{errors.tutorialid}</div>}
                             </div>
-                            {errors.tutorid && <div className="mt-1 text-sm text-destructive">{errors.tutorid}</div>}
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label className="mb-1 block text-sm text-muted-foreground">Date</label>
+                                    <Input
+                                        type="date"
+                                        value={attendanceDate}
+                                        onChange={(e) => setAttendanceDate((e.target as HTMLInputElement).value)}
+                                    />
+                                    {errors.date && <div className="mt-1 text-sm text-destructive">{errors.date}</div>}
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-sm text-muted-foreground">Time In</label>
+                                    <Input
+                                        type="time"
+                                        step={60}
+                                        value={timeIn}
+                                        onChange={(e) => setTimeIn((e.target as HTMLInputElement).value)}
+                                    />
+                                    {errors.time_in && <div className="mt-1 text-sm text-destructive">{errors.time_in}</div>}
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-sm text-muted-foreground">Time Out</label>
+                                    <Input
+                                        type="time"
+                                        step={60}
+                                        value={timeOut}
+                                        onChange={(e) => setTimeOut((e.target as HTMLInputElement).value)}
+                                    />
+                                    {errors.time_out && <div className="mt-1 text-sm text-destructive">{errors.time_out}</div>}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    disabled={!canSubmitManual || isSubmitting}
+                                    onClick={submitManualAttendance}
+                                >
+                                    <Save className="mr-2 h-4 w-4" /> {isSubmitting ? 'Saving...' : 'Save Attendance'}
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => resetManualTimeFields()}
+                                >
+                                    Reset Date/Time
+                                </Button>
+                            </div>
                         </div>
+<<<<<<< HEAD
 
                         <div>
                             <label className="mb-1 block text-sm text-muted-foreground">Student</label>
@@ -748,6 +984,8 @@ export default function AttendanceClock() {
                             </Button>
                         </div>
                     </div>
+=======
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                 </div>
             </div>
 

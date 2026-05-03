@@ -90,7 +90,11 @@ export default function Students() {
                         />
                     </div>
 
+<<<<<<< HEAD
                     <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+=======
+                    <div className="flex items-center gap-2">
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                         <Button variant="outline" onClick={() => setUploadOpen(true)}>
                             <Upload className="mr-2 h-4 w-4" /> Bulk Upload
                         </Button>
@@ -209,7 +213,11 @@ export default function Students() {
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent>
                         <DialogHeader>
+<<<<<<< HEAD
                             <DialogTitle>Bulk Register Tutees</DialogTitle>
+=======
+                            <DialogTitle>Bulk Register Students</DialogTitle>
+>>>>>>> a7e8c778e9d14e724049fa08653bc0cc8325e51d
                             <DialogDescription>
                                 Upload a CSV or Excel file. Required columns: firstname, lastname. Optional columns: tuteeid, middlename, date_of_birth, school, parent_name, parent_contact.
                             </DialogDescription>
